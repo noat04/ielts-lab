@@ -73,6 +73,7 @@ export type GoalState = {
 };
 
 export type DashboardCloudData = {
+  activePlanId: string | null;
   goals: GoalState;
   bugs: Bug[];
   sessions: StudySession[];
@@ -365,7 +366,8 @@ export async function prepareUserDashboard(userId: string) {
 
 export async function loadDashboard(): Promise<DashboardCloudData> {
   const client = getSupabase();
-  const [goals, bugs, sessions, weeks, tests, exercises, progress, theory, sources] = await Promise.all([
+  const [activePlan, goals, bugs, sessions, weeks, tests, exercises, progress, theory, sources] = await Promise.all([
+    client.from("learning_plans").select("id").eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("study_goals").select("*").single(),
     client.from("bugs").select("*").order("detected_on", { ascending: false }),
     client.from("study_sessions").select("*").order("study_date", { ascending: false }),
@@ -377,7 +379,7 @@ export async function loadDashboard(): Promise<DashboardCloudData> {
     client.from("learning_resources").select("*").order("sort_order"),
   ]);
 
-  [goals, bugs, sessions, weeks, tests, exercises, progress, theory, sources]
+  [activePlan, goals, bugs, sessions, weeks, tests, exercises, progress, theory, sources]
     .forEach((result) => throwIfError(result.error));
 
   const completedExercises = new Map(
@@ -385,6 +387,7 @@ export async function loadDashboard(): Promise<DashboardCloudData> {
   );
 
   return {
+    activePlanId: activePlan.data?.id ?? null,
     goals: {
       currentBand: Number(goals.data.current_band),
       targetBand: Number(goals.data.target_band),
@@ -479,6 +482,7 @@ export async function saveBugRecord(
   userId: string,
   bug: Omit<Bug, "stt" | "custom" | "key">,
   existingId?: string,
+  planId?: string | null,
 ): Promise<Bug> {
   const client = getSupabase();
   const payload = {
@@ -492,6 +496,7 @@ export async function saveBugRecord(
     example: bug.example,
     status: bug.status,
     origin: "user",
+    plan_id: planId || null,
   };
   const query = existingId
     ? client.from("bugs").update(payload).eq("id", existingId)
@@ -522,6 +527,7 @@ export async function saveSessionRecord(
   userId: string,
   session: Omit<StudySession, "id" | "createdAt" | "updatedAt">,
   existingId?: string,
+  planId?: string | null,
 ): Promise<StudySession> {
   const client = getSupabase();
   const payload = {
@@ -533,6 +539,7 @@ export async function saveSessionRecord(
     note: session.note,
     status: session.status,
     origin: "user",
+    plan_id: planId || null,
   };
   const query = existingId
     ? client.from("study_sessions").update(payload).eq("id", existingId)

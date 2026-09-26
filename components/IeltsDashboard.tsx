@@ -4,6 +4,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { DASHBOARD_DATA } from "@/lib/dashboard-data";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { LearningPlanner } from "@/components/LearningPlanner";
+import { ContentHub } from "@/components/ContentHub";
 import {
   deleteBugRecord,
   deleteSessionRecord,
@@ -23,7 +25,7 @@ import {
   type StudySession,
 } from "@/lib/supabase/dashboard";
 
-type Tab = "overview" | "bugs" | "journey";
+type Tab = "overview" | "planner" | "content" | "bugs" | "journey";
 
 const BUG_SKILLS: Skill[] = ["Grammar / Vocab", "Reading", "Writing", "Speaking", "Listening"];
 const ALL_SKILLS: Skill[] = ["Listening", "Reading", "Writing", "Speaking", "Grammar / Vocab"];
@@ -178,7 +180,7 @@ export function IeltsDashboard() {
   async function saveSession(payload: Omit<StudySession, "id" | "createdAt" | "updatedAt">, existing?: StudySession) {
     if (!user) return;
     try {
-      const saved = await saveSessionRecord(user.id, payload, existing?.id);
+      const saved = await saveSessionRecord(user.id, payload, existing?.id, cloudData?.activePlanId);
       setCloudData((current) => current ? {
         ...current,
         sessions: existing
@@ -223,7 +225,7 @@ export function IeltsDashboard() {
     const code = payload.id || `${payload.skill === "Grammar / Vocab" ? "GRAM" : payload.skill.slice(0, 5).toUpperCase()}_CUSTOM_${customCount + 1}`;
     if (bugs.some((bug) => bug.id === code && bug.key !== existing?.key)) return "Mã lỗi đã tồn tại.";
     try {
-      const saved = await saveBugRecord(user.id, { ...payload, id: code }, existing?.key);
+      const saved = await saveBugRecord(user.id, { ...payload, id: code }, existing?.key, cloudData?.activePlanId);
       setCloudData((current) => current ? {
         ...current,
         bugs: existing
@@ -293,9 +295,9 @@ export function IeltsDashboard() {
       <header className="topbar">
         <button className="brand" onClick={() => setTab("overview")}><span>IL</span><b>IELTS LAB<small>PERSONAL DASHBOARD</small></b></button>
         <nav>
-          {(["overview", "bugs", "journey"] as Tab[]).map((item) => (
+          {(["overview", "planner", "content", "bugs", "journey"] as Tab[]).map((item) => (
             <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-              {item === "overview" ? "Tổng quan" : item === "bugs" ? "Sổ lỗi" : "Hành trình"}{item === "bugs" && <i>{openBugs.length}</i>}
+              {item === "overview" ? "Tổng quan" : item === "planner" ? "Lộ trình" : item === "content" ? "Nội dung" : item === "bugs" ? "Sổ lỗi" : "Hành trình"}{item === "bugs" && <i>{openBugs.length}</i>}
             </button>
           ))}
         </nav>
@@ -340,6 +342,10 @@ export function IeltsDashboard() {
           </section>
         </main>
       )}
+
+      {tab === "planner" && <LearningPlanner userId={user.id}/>}
+
+      {tab === "content" && <ContentHub userId={user.id}/>}
 
       {tab === "bugs" && (
         <main>

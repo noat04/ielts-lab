@@ -17,6 +17,11 @@ authenticated Supabase user.
 - `theory_notes`: theory shown beside bug records.
 - `learning_resources`: Google Docs, Sheets, books, and other sources.
 - `data_imports`: audit history for snapshot and localStorage imports.
+- `learning_plans`, `plan_phases`, `daily_lessons`, `exam_events`: personal roadmaps and schedules.
+- `diagnostic_assessments`: placement results used by automatic planning.
+- Storage bucket `learning-materials`: private user uploads, limited to 50 MB per file.
+- `content_articles`: community articles with WordPress-style SEO metadata.
+- `vocabulary_topics`, `vocabulary_entries`: shared vocabulary library and bulk imports.
 
 ## Apply locally
 
@@ -33,6 +38,15 @@ To apply the migrations to a linked remote project:
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
+```
+
+Deploy the optional AI learning coach after setting its server-side secret:
+
+```bash
+supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+supabase secrets set OPENAI_MODEL=gpt-5-mini
+supabase functions deploy learning-coach
+supabase functions deploy parse-vocabulary-file
 ```
 
 Generate frontend database types after applying the migrations:
