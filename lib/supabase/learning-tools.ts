@@ -221,15 +221,40 @@ export async function generateAutomaticSchedule(
     sequence += 1;
   }
   if (!rows.length) throw new Error("Không tìm thấy ngày học phù hợp trong khoảng thời gian đã chọn.");
-  const sourceKeys = rows.map((row) => row.source_key);
-  const existing = await client.from("daily_lessons").select("source_key").eq("plan_id", plan.id).in("source_key", sourceKeys);
+  const existing = await client.from("daily_lessons")
+    .select("id,lesson_date,source_key,generation_source,status,workflow_status")
+    .eq("plan_id", plan.id)
+    .gte("lesson_date", dateISO(start))
+    .lte("lesson_date", dateISO(end));
   throwIfError(existing.error);
-  const existingKeys = new Set((existing.data ?? []).map((row) => row.source_key));
-  const newRows = rows.filter((row) => !existingKeys.has(row.source_key));
-  if (!newRows.length) return 0;
-  const { error } = await client.from("daily_lessons").insert(newRows);
-  throwIfError(error);
-  return newRows.length;
+  const existingRows = existing.data ?? [];
+  const manualDates = new Set(existingRows.filter((row) => row.generation_source !== "automatic").map((row) => row.lesson_date));
+  const automaticByKey = new Map(existingRows.filter((row) => row.generation_source === "automatic").map((row) => [row.source_key, row]));
+  const newRows = rows.filter((row) => !manualDates.has(row.lesson_date) && !automaticByKey.has(row.source_key));
+  const updateRows = rows.filter((row) => {
+    const current = automaticByKey.get(row.source_key);
+    return !manualDates.has(row.lesson_date) && current && current.status !== "completed" && current.workflow_status !== "DONE";
+  });
+  let created = 0;
+  let updated = 0;
+  if (newRows.length) {
+    const inserted = await client.from("daily_lessons").insert(newRows);
+    throwIfError(inserted.error);
+    created = newRows.length;
+  }
+  if (updateRows.length) {
+    const updates = await Promise.all(updateRows.map((row) => client.from("daily_lessons").update({
+      phase_id: row.phase_id,
+      title: row.title,
+      description: row.description,
+      skill: row.skill,
+      duration_minutes: row.duration_minutes,
+      priority: row.priority,
+    }).eq("id", automaticByKey.get(row.source_key)!.id)));
+    updates.forEach((result) => throwIfError(result.error));
+    updated = updateRows.length;
+  }
+  return { created, updated, skipped: rows.length - created - updated };
 }
 
 export async function saveTestResult(userId: string, planId: string, input: TestResultInput) {

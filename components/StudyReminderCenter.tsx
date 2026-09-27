@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   dismissStudyReminder,
+  disablePushSubscription,
   loadStudyReminders,
   markStudyReminderNotified,
   reminderEffectiveAt,
   saveStudyReminderSettings,
+  savePushSubscription,
   snoozeStudyReminder,
   type StudyReminder,
   type StudyReminderSettings,
@@ -29,6 +31,12 @@ function reminderLabel(reminder: StudyReminder) {
   if (difference < 3600000) return `Còn ${Math.max(1, Math.ceil(difference / 60000))} phút`;
   if (difference < 86400000) return `Còn ${Math.ceil(difference / 3600000)} giờ`;
   return `Còn ${Math.ceil(difference / 86400000)} ngày`;
+}
+
+function urlBase64ToUint8Array(value: string) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 }
 
 export function StudyReminderCenter({ userId, onOpenPlanner }: { userId: string; onOpenPlanner: () => void }) {
@@ -108,6 +116,33 @@ export function StudyReminderCenter({ userId, onOpenPlanner }: { userId: string;
     setError("");
   }
 
+  async function toggleBackgroundPush() {
+    if (!draft || !("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") {
+      setError("Trình duyệt này không hỗ trợ Web Push.");
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      const existing = await registration.pushManager.getSubscription();
+      if (draft.pushNotifications) {
+        if (existing) { await disablePushSubscription(existing.endpoint); await existing.unsubscribe(); }
+        setDraft({ ...draft, pushNotifications: false });
+        setError("");
+        return;
+      }
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!publicKey) throw new Error("Chưa cấu hình NEXT_PUBLIC_VAPID_PUBLIC_KEY.");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Quyền thông báo chưa được cấp.");
+      const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      await savePushSubscription(userId, subscription);
+      setDraft({ ...draft, pushNotifications: true });
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể bật thông báo nền.");
+    }
+  }
+
   async function saveSettings() {
     if (!draft) return;
     setSaving(true);
@@ -175,8 +210,10 @@ export function StudyReminderCenter({ userId, onOpenPlanner }: { userId: string;
               <label>Nhắc trước kỳ thi<select value={draft.examLeadMinutes} onChange={(event) => setDraft({ ...draft, examLeadMinutes: Number(event.target.value) })}><option value={60}>1 giờ</option><option value={1440}>1 ngày</option><option value={2880}>2 ngày</option><option value={10080}>1 tuần</option></select></label>
               <label>Múi giờ<input value={draft.timeZone} onChange={(event) => setDraft({ ...draft, timeZone: event.target.value })}/></label>
               <div className="browser-notification"><b>Thông báo trình duyệt</b><small>{typeof Notification === "undefined" ? "Không được hỗ trợ" : Notification.permission === "granted" ? "Đã được cấp quyền" : "Cần bạn cấp quyền"}</small><button type="button" onClick={() => void enableBrowserNotifications()}>{draft.browserNotifications ? "Tắt thông báo" : "Bật thông báo"}</button></div>
+              <div className="browser-notification"><b>Web Push khi đã đóng website</b><small>Cần VAPID và Edge Function gửi lịch nền.</small><button type="button" onClick={() => void toggleBackgroundPush()}>{draft.pushNotifications ? "Tắt Web Push" : "Bật Web Push"}</button></div>
+              <label className="reminder-toggle"><span><b>Nhắc qua email</b><small>Gửi qua Resend khi lịch đến hạn.</small></span><input type="checkbox" checked={draft.emailNotifications} onChange={(event) => setDraft({ ...draft, emailNotifications: event.target.checked })}/></label>
               <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : "Lưu cài đặt"}</button>
-              <p className="reminder-note">Thông báo trình duyệt hoạt động khi website đang mở. Lịch vẫn được lưu trên Supabase để bạn xem lại trên mọi thiết bị.</p>
+              <p className="reminder-note">Thông báo trình duyệt thường hoạt động khi website đang mở. Web Push và email tiếp tục hoạt động khi website đóng sau khi Edge Function được triển khai và đặt lịch chạy.</p>
             </form>
           </div>
         </>}

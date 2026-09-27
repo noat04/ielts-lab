@@ -63,6 +63,7 @@ function theoryKey(bug: Bug) {
 export function IeltsDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [recoveringPassword, setRecoveringPassword] = useState(false);
   const [cloudData, setCloudData] = useState<DashboardCloudData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [appError, setAppError] = useState("");
@@ -87,8 +88,9 @@ export function IeltsDashboard() {
       setAuthReady(true);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (event === "PASSWORD_RECOVERY") setRecoveringPassword(true);
       setAuthReady(true);
     });
 
@@ -278,6 +280,7 @@ export function IeltsDashboard() {
   if (!isSupabaseConfigured) return <SupabaseConfigurationRequired/>;
   if (!authReady) return <LoadingScreen label="Đang kiểm tra đăng nhập…"/>;
   if (!user) return <AuthScreen/>;
+  if (recoveringPassword) return <PasswordRecoveryScreen onDone={() => setRecoveringPassword(false)}/>;
   if (loadingData && !cloudData) return <LoadingScreen label="Đang đồng bộ dữ liệu Supabase…"/>;
   if (!cloudData) return <LoadingScreen label={appError || "Chưa thể tải dữ liệu."} retry={() => void refreshDashboard(user.id)}/>;
 
@@ -434,7 +437,7 @@ function LoadingScreen({ label, retry }: { label: string; retry?: () => void }) 
 }
 
 function AuthScreen() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -444,13 +447,18 @@ function AuthScreen() {
     if (!supabase) return;
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email")).trim();
-    const password = String(form.get("password"));
+    const password = String(form.get("password") ?? "");
     setSubmitting(true);
     setError("");
     setMessage("");
-    const result = mode === "signin"
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
+    if (mode === "forgot") {
+      const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      setSubmitting(false);
+      if (result.error) setError(result.error.message);
+      else setMessage("Đã gửi liên kết đặt lại mật khẩu. Hãy kiểm tra hộp thư và thư rác.");
+      return;
+    }
+    const result = mode === "signin" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password });
     setSubmitting(false);
     if (result.error) {
       setError(result.error.message);
@@ -461,7 +469,26 @@ function AuthScreen() {
     }
   }
 
-  return <main className="auth-shell"><section className="auth-card"><span className="auth-mark">IL</span><p className="eyebrow">IELTS LAB · SUPABASE</p><h1>{mode === "signin" ? "Đăng nhập" : "Tạo tài khoản"}</h1><p>Dữ liệu học tập được đồng bộ riêng tư theo tài khoản của bạn.</p><form onSubmit={submit}><label>Email<input name="email" type="email" autoComplete="email" required/></label><label>Mật khẩu<input name="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={6} required/></label>{error && <p className="form-error">{error}</p>}{message && <p className="form-success">{message}</p>}<button className="primary" type="submit" disabled={submitting}>{submitting ? "Đang xử lý…" : mode === "signin" ? "Đăng nhập" : "Đăng ký"}</button></form><button className="auth-switch" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMessage(""); }}>{mode === "signin" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}</button></section></main>;
+  return <main className="auth-shell"><section className="auth-card"><span className="auth-mark">IL</span><p className="eyebrow">IELTS LAB · SUPABASE</p><h1>{mode === "signin" ? "Đăng nhập" : mode === "signup" ? "Tạo tài khoản" : "Quên mật khẩu"}</h1><p>{mode === "forgot" ? "Nhập email để nhận liên kết đặt lại mật khẩu." : "Dữ liệu học tập được đồng bộ riêng tư theo tài khoản của bạn."}</p><form onSubmit={submit}><label>Email<input name="email" type="email" autoComplete="email" required/></label>{mode !== "forgot" && <label>Mật khẩu<input name="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={6} required/></label>}{error && <p className="form-error">{error}</p>}{message && <p className="form-success">{message}</p>}<button className="primary" type="submit" disabled={submitting}>{submitting ? "Đang xử lý…" : mode === "signin" ? "Đăng nhập" : mode === "signup" ? "Đăng ký" : "Gửi liên kết đặt lại"}</button></form>{mode === "signin" && <button className="auth-switch" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>Quên mật khẩu?</button>}<button className="auth-switch" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMessage(""); }}>{mode === "signin" ? "Chưa có tài khoản? Đăng ký" : "Quay lại đăng nhập"}</button></section></main>;
+}
+
+function PasswordRecoveryScreen({ onDone }: { onDone: () => void }) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password"));
+    const confirmation = String(form.get("confirmation"));
+    if (password !== confirmation) { setError("Hai mật khẩu chưa khớp."); return; }
+    setSaving(true); setError("");
+    const result = await supabase.auth.updateUser({ password });
+    setSaving(false);
+    if (result.error) setError(result.error.message);
+    else onDone();
+  }
+  return <main className="auth-shell"><section className="auth-card"><span className="auth-mark">IL</span><p className="eyebrow">PASSWORD RECOVERY</p><h1>Đặt mật khẩu mới</h1><form onSubmit={submit}><label>Mật khẩu mới<input name="password" type="password" autoComplete="new-password" minLength={6} required/></label><label>Nhập lại mật khẩu<input name="confirmation" type="password" autoComplete="new-password" minLength={6} required/></label>{error && <p className="form-error">{error}</p>}<button className="primary" disabled={saving}>{saving ? "Đang cập nhật…" : "Cập nhật mật khẩu"}</button></form></section></main>;
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {

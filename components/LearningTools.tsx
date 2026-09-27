@@ -135,7 +135,10 @@ export function LearningTools({
 
     {modal && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setModal(null); }}><div className="modal-card"><header><div><small>LEARNING TOOLS</small><h2>{modal === "diagnostic" ? "Đánh giá đầu vào" : modal === "schedule" ? "Sinh lịch học tự động" : modal === "test" ? "Nhập kết quả luyện đề" : "Tải tài liệu lên Storage"}</h2></div><button disabled={busy} onClick={() => setModal(null)}>×</button></header>
       {modal === "diagnostic" && <DiagnosticForm initial={insight?.assessment ?? undefined} busy={busy} onSave={(input) => run(() => saveDiagnosticAssessment(userId, plan.id, input).then(() => undefined), "Đã cập nhật band đầu vào và lộ trình.")}/>} 
-      {modal === "schedule" && <ScheduleForm busy={busy} onSave={(weeks) => run(async () => { const count = await generateAutomaticSchedule(userId, plan, phases, weeks); setMessage(`Đã tạo hoặc cập nhật ${count} bài học.`); }, "Đã tạo lịch học tự động.")}/>} 
+      {modal === "schedule" && <ScheduleForm busy={busy} onSave={(weeks) => run(async () => {
+        const result = await generateAutomaticSchedule(userId, plan, phases, weeks);
+        setMessage(`Đã tạo ${result.created}, cập nhật ${result.updated}, bỏ qua ${result.skipped} bài học.`);
+      }, "Đã tạo lịch học tự động.")}/>}
       {modal === "test" && <TestForm busy={busy} onSave={(input) => run(() => saveTestResult(userId, plan.id, input), "Đã lưu kết quả luyện đề.")}/>} 
       {modal === "upload" && <UploadForm busy={busy} onSave={(file, description) => run(() => uploadLearningMaterial(userId, plan.id, file, description).then(() => undefined), "Đã tải tài liệu lên Supabase Storage.")}/>} 
     </div></div>}
@@ -159,7 +162,7 @@ function DiagnosticForm({ initial, busy, onSave }: { initial?: DiagnosticAssessm
 
 function ScheduleForm({ busy, onSave }: { busy: boolean; onSave: (weeks: number) => void }) {
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSave(Number(new FormData(event.currentTarget).get("weeks"))); }
-  return <form className="planner-form" onSubmit={submit}><p className="form-note">Lịch được phân bổ theo ngày học đã chọn. Chạy lại sẽ cập nhật bài tự động cùng ngày, không tạo trùng.</p><div className="form-grid"><label className="wide">Số tuần muốn tạo<select name="weeks" defaultValue="4"><option value="2">2 tuần</option><option value="4">4 tuần</option><option value="8">8 tuần</option><option value="12">12 tuần</option></select></label></div><button className="primary submit" disabled={busy}>{busy ? "Đang tạo lịch…" : "Tạo lịch học"}</button></form>;
+  return <form className="planner-form" onSubmit={submit}><p className="form-note">Lịch được phân bổ theo ngày học đã chọn. Chạy lại sẽ cập nhật bài tự động chưa hoàn thành; ngày đã có bài nhập thủ công sẽ được giữ nguyên và bỏ qua.</p><div className="form-grid"><label className="wide">Số tuần muốn tạo<select name="weeks" defaultValue="4"><option value="2">2 tuần</option><option value="4">4 tuần</option><option value="8">8 tuần</option><option value="12">12 tuần</option></select></label></div><button className="primary submit" disabled={busy}>{busy ? "Đang tạo lịch…" : "Tạo lịch học"}</button></form>;
 }
 
 function optionalNumber(form: FormData, key: string) {

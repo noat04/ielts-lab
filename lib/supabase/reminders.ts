@@ -5,6 +5,8 @@ export type ReminderStatus = "SCHEDULED" | "SNOOZED" | "DISMISSED";
 export type StudyReminderSettings = {
   enabled: boolean;
   browserNotifications: boolean;
+  pushNotifications: boolean;
+  emailNotifications: boolean;
   defaultStudyTime: string;
   lessonLeadMinutes: number;
   examLeadMinutes: number;
@@ -27,6 +29,8 @@ export type StudyReminder = {
 const DEFAULT_SETTINGS: StudyReminderSettings = {
   enabled: true,
   browserNotifications: false,
+  pushNotifications: false,
+  emailNotifications: false,
   defaultStudyTime: "19:00",
   lessonLeadMinutes: 30,
   examLeadMinutes: 1440,
@@ -41,6 +45,8 @@ function mapSettings(row: Record<string, any>): StudyReminderSettings {
   return {
     enabled: row.enabled,
     browserNotifications: row.browser_notifications,
+    pushNotifications: row.push_notifications ?? false,
+    emailNotifications: row.email_notifications ?? false,
     defaultStudyTime: row.default_study_time?.slice(0, 5) || "19:00",
     lessonLeadMinutes: row.lesson_lead_minutes,
     examLeadMinutes: row.exam_lead_minutes,
@@ -84,6 +90,8 @@ export async function loadStudyReminders(userId: string) {
       user_id: userId,
       enabled: DEFAULT_SETTINGS.enabled,
       browser_notifications: DEFAULT_SETTINGS.browserNotifications,
+      push_notifications: DEFAULT_SETTINGS.pushNotifications,
+      email_notifications: DEFAULT_SETTINGS.emailNotifications,
       default_study_time: DEFAULT_SETTINGS.defaultStudyTime,
       lesson_lead_minutes: DEFAULT_SETTINGS.lessonLeadMinutes,
       exam_lead_minutes: DEFAULT_SETTINGS.examLeadMinutes,
@@ -120,6 +128,8 @@ export async function saveStudyReminderSettings(userId: string, settings: StudyR
     user_id: userId,
     enabled: settings.enabled,
     browser_notifications: settings.browserNotifications,
+    push_notifications: settings.pushNotifications,
+    email_notifications: settings.emailNotifications,
     default_study_time: settings.defaultStudyTime,
     lesson_lead_minutes: settings.lessonLeadMinutes,
     exam_lead_minutes: settings.examLeadMinutes,
@@ -129,6 +139,25 @@ export async function saveStudyReminderSettings(userId: string, settings: StudyR
   const refreshResult = await client.rpc("ielts_lab_refresh_study_reminders");
   throwIfError(refreshResult.error);
   return mapSettings(result.data);
+}
+
+export async function savePushSubscription(userId: string, subscription: PushSubscription) {
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) throw new Error("Push subscription không hợp lệ.");
+  const { error } = await getSupabase().from("push_subscriptions").upsert({
+    user_id: userId,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth_key: json.keys.auth,
+    user_agent: navigator.userAgent,
+    active: true,
+  }, { onConflict: "endpoint" });
+  throwIfError(error);
+}
+
+export async function disablePushSubscription(endpoint: string) {
+  const { error } = await getSupabase().from("push_subscriptions").update({ active: false }).eq("endpoint", endpoint);
+  throwIfError(error);
 }
 
 export async function dismissStudyReminder(id: string) {

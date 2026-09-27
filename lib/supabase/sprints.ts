@@ -54,6 +54,8 @@ export type WeekSprintInput = {
   sessions?: ImportedSprintSession[];
 };
 
+export type WeekSprintUpdate = Pick<WeekSprintInput, "startDate" | "title" | "objective" | "targets">;
+
 function throwIfError(error: { message: string } | null) { if (error) throw new Error(error.message); }
 function mapPlan(row: Record<string, any>): LearningPlan { return { id: row.id, title: row.title, description: row.description, startDate: row.start_date, endDate: row.end_date, examDate: row.exam_date || "", currentBand: Number(row.current_band), targetBand: Number(row.target_band), weeklyMinutes: row.weekly_minutes, studyDays: row.study_days, status: row.status }; }
 function mapPhase(row: Record<string, any>): PlanPhase { return { id: row.id, planId: row.plan_id, title: row.title, description: row.description, startDate: row.start_date, endDate: row.end_date, position: row.position, status: row.status }; }
@@ -114,6 +116,20 @@ const SKILL_BY_DAY: Record<number, string> = { 1: "Listening", 2: "Reading", 3: 
 
 export async function createWeekSprint(userId: string, plan: LearningPlan, phases: PlanPhase[], input: WeekSprintInput) {
   const client = getSupabase();
+  if (input.sessions?.length) {
+    const imported = await client.rpc("ielts_lab_import_week_sprint", {
+      p_plan_id: plan.id,
+      p_start_date: input.startDate,
+      p_title: input.title,
+      p_objective: input.objective,
+      p_targets: input.targets,
+      p_sessions: input.sessions,
+    });
+    throwIfError(imported.error);
+    const created = await client.from("week_sprints").select("*").eq("id", imported.data).single();
+    throwIfError(created.error);
+    return mapSprint(created.data);
+  }
   const latest = await client.from("week_sprints").select("week_number").eq("plan_id", plan.id).order("week_number", { ascending: false }).limit(1).maybeSingle();
   throwIfError(latest.error);
   const weekNumber = (latest.data?.week_number ?? 0) + 1;
@@ -143,10 +159,35 @@ export async function createWeekSprint(userId: string, plan: LearningPlan, phase
   return sprint;
 }
 
+export async function updateWeekSprint(id: string, input: WeekSprintUpdate) {
+  const client = getSupabase();
+  const updated = await client.rpc("ielts_lab_update_week_sprint", {
+    p_sprint_id: id,
+    p_start_date: input.startDate,
+    p_title: input.title,
+    p_objective: input.objective,
+    p_targets: input.targets,
+  });
+  throwIfError(updated.error);
+  const { data, error } = await client.from("week_sprints").select("*").eq("id", id).single();
+  throwIfError(error);
+  return mapSprint(data);
+}
+
+export async function deleteWeekSprint(id: string) {
+  const { error } = await getSupabase().rpc("ielts_lab_delete_week_sprint", { p_sprint_id: id });
+  throwIfError(error);
+}
+
 export async function saveSourceMapping(userId: string, planId: string, input: Omit<LearningSourceMapping, "id" | "planId">, id?: string) {
   const client = getSupabase(); const payload = { user_id: userId, plan_id: planId, resource_id: input.resourceId || null, document_title: input.documentTitle, unit: input.unit, section: input.section, page_from: input.pageFrom, page_to: input.pageTo, audio_track: input.audioTrack, script_page: input.scriptPage, exercise_from: input.exerciseFrom, exercise_to: input.exerciseTo, source_url: input.sourceUrl || null, notes: input.notes };
   const query = id ? client.from("learning_source_mappings").update(payload).eq("id", id) : client.from("learning_source_mappings").insert(payload);
   const { data, error } = await query.select().single(); throwIfError(error); return mapSource(data);
+}
+
+export async function deleteSourceMapping(id: string) {
+  const { error } = await getSupabase().from("learning_source_mappings").delete().eq("id", id);
+  throwIfError(error);
 }
 
 export async function assignSourceToSession(sessionId: string, sourceId: string) {

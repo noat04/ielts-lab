@@ -426,10 +426,18 @@ export async function markResourceOpened(id: string) {
 
 export async function deletePlanResource(resource: PlanResource) {
   const client = getSupabase();
-  const { error } = await client.from("learning_resources").delete().eq("id", resource.id);
-  throwIfError(error);
-  if (resource.storagePath) {
-    const { error: storageError } = await client.storage.from("learning-materials").remove([resource.storagePath]);
-    throwIfError(storageError);
+  if (!resource.storagePath) {
+    const { error } = await client.from("learning_resources").delete().eq("id", resource.id);
+    throwIfError(error);
+    return;
   }
+  const archived = await client.from("learning_resources").update({ access_status: "ARCHIVED" }).eq("id", resource.id);
+  throwIfError(archived.error);
+  const removed = await client.storage.from("learning-materials").remove([resource.storagePath]);
+  if (removed.error) {
+    await client.from("learning_resources").update({ access_status: resource.accessStatus || "READY" }).eq("id", resource.id);
+    throw new Error(`Không thể xóa file khỏi Storage; metadata đã được khôi phục. ${removed.error.message}`);
+  }
+  const deleted = await client.from("learning_resources").delete().eq("id", resource.id);
+  if (deleted.error) throw new Error(`File đã được xóa khỏi Storage nhưng metadata chưa thể xóa: ${deleted.error.message}`);
 }

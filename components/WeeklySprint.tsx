@@ -9,6 +9,8 @@ import {
   completeSprintSession,
   createBugFromAttempt,
   createWeekSprint,
+  deleteSourceMapping,
+  deleteWeekSprint,
   deleteStudyTask,
   loadSprintWorkspace,
   logTaskStarted,
@@ -17,6 +19,7 @@ import {
   setSprintStatus,
   startSprintSession,
   submitTaskAttempt,
+  updateWeekSprint,
   uploadSpeakingRecording,
   type LearningSourceMapping,
   type SprintSession,
@@ -24,9 +27,11 @@ import {
   type StudyTask,
   type TaskAttempt,
   type WeekSprintInput,
+  type WeekSprint,
 } from "@/lib/supabase/sprints";
 
-type Modal = { kind: "week" } | { kind: "source" } | { kind: "tasks"; session: SprintSession } | null;
+type Modal = { kind: "week"; item?: WeekSprint } | { kind: "source"; item?: LearningSourceMapping } | { kind: "tasks"; session: SprintSession } | null;
+type ImportReport = { title: string; sessions: number; tasks: number; sources: number; warnings: string[] };
 const SKILLS = ["Listening", "Reading", "Writing", "Speaking", "Grammar / Vocab"];
 
 function localISO(date = new Date()) { return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
@@ -41,6 +46,7 @@ export function WeeklySprint({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
 
   const reload = useCallback(async (sprintId?: string) => {
     setLoading(true); setError("");
@@ -67,10 +73,10 @@ export function WeeklySprint({ userId }: { userId: string }) {
   const scoreResults = workspace.results.filter((item) => item.score !== null);
   const average = scoreResults.length ? scoreResults.reduce((sum, item) => sum + (item.score ?? 0), 0) / scoreResults.length : null;
 
-  if (!sprint) return <main className="sprint-page"><section className="sprint-empty"><p className="eyebrow">SPRINT-BASED LEARNING</p><h1>Bắt đầu tuần học đầu tiên</h1><p>Website sẽ tạo các session T2–CN từ lịch rảnh trong lộ trình. Sau đó bạn map tài liệu và thêm bài tập cho từng ngày.</p><button className="primary" onClick={() => setModal({ kind: "week" })}>Tạo Weekly Sprint</button></section>{modal?.kind === "week" && <SprintModal title="Tạo Weekly Sprint" onClose={() => setModal(null)}><WeekForm saving={saving} defaultTitle="Week 1" onSave={(input) => run(async () => { const created = await createWeekSprint(userId, workspace.plan!, workspace.phases, input); setSelectedSprintId(created.id); return created.id; }, selectedSprintId)}/></SprintModal>}</main>;
+  if (!sprint) return <main className="sprint-page"><section className="sprint-empty"><p className="eyebrow">SPRINT-BASED LEARNING</p><h1>Bắt đầu tuần học đầu tiên</h1><p>Website sẽ tạo các session T2–CN từ lịch rảnh trong lộ trình. Sau đó bạn map tài liệu và thêm bài tập cho từng ngày.</p><button className="primary" onClick={() => setModal({ kind: "week" })}>Tạo Weekly Sprint</button></section>{modal?.kind === "week" && <SprintModal title="Tạo Weekly Sprint" onClose={() => setModal(null)}><WeekForm saving={saving} defaultTitle="Week 1" onSave={(input, report) => run(async () => { const created = await createWeekSprint(userId, workspace.plan!, workspace.phases, input); setSelectedSprintId(created.id); if (report) setImportReport(report); return created.id; }, selectedSprintId)}/></SprintModal>}</main>;
 
   return <main className="sprint-page">
-    <section className="sprint-head"><div><p className="eyebrow">WEEK {sprint.weekNumber} · {formatDate(sprint.startDate)} → {formatDate(sprint.endDate)}</p><h1>{sprint.title}</h1><p>{sprint.objective || "Chưa đặt mục tiêu cho tuần."}</p></div><aside><select value={selectedSprintId} onChange={(event) => { setSelectedSprintId(event.target.value); void reload(event.target.value); }}>{workspace.sprints.map((item) => <option key={item.id} value={item.id}>Week {item.weekNumber} · {item.title}</option>)}</select><b className={`sprint-status ${sprint.status.toLowerCase()}`}>{sprint.status.replace("_", " ")}</b><button onClick={() => setModal({ kind: "week" })}>＋ Tuần mới</button>{sprint.status === "REVIEW" && <button className="primary" onClick={() => void run(() => setSprintStatus(sprint.id, "COMPLETED"))}>Hoàn tất tuần</button>}</aside></section>
+    <section className="sprint-head"><div><p className="eyebrow">WEEK {sprint.weekNumber} · {formatDate(sprint.startDate)} → {formatDate(sprint.endDate)}</p><h1>{sprint.title}</h1><p>{sprint.objective || "Chưa đặt mục tiêu cho tuần."}</p></div><aside><select value={selectedSprintId} onChange={(event) => { setSelectedSprintId(event.target.value); void reload(event.target.value); }}>{workspace.sprints.map((item) => <option key={item.id} value={item.id}>Week {item.weekNumber} · {item.title}</option>)}</select><b className={`sprint-status ${sprint.status.toLowerCase()}`}>{sprint.status.replace("_", " ")}</b><button onClick={() => setModal({ kind: "week" })}>＋ Tuần mới</button><button onClick={() => setModal({ kind: "week", item: sprint })}>Sửa tuần</button><button className="delete" disabled={saving} onClick={() => { if (confirm(`Xóa “${sprint.title}” cùng toàn bộ session, task và kết quả trong tuần?`)) void run(async () => { await deleteWeekSprint(sprint.id); setSelectedSprintId(undefined); }, undefined); }}>Xóa tuần</button>{sprint.status === "REVIEW" && <button className="primary" onClick={() => void run(() => setSprintStatus(sprint.id, "COMPLETED"))}>Hoàn tất tuần</button>}</aside></section>
     {error && <div className="status-banner"><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
 
     <section className="sprint-summary"><article><small>SESSION HOÀN THÀNH</small><b>{completed}/{total}</b><div className="phase-track"><i style={{ width: `${total ? completed / total * 100 : 0}%` }}/></div></article><article><small>ĐIỂM TRUNG BÌNH</small><b>{average === null ? "—" : `${average.toFixed(0)}%`}</b><span>Từ session đã chấm</span></article><article><small>LỖI MỚI</small><b>{workspace.results.reduce((sum, item) => sum + item.newBugs, 0)}</b><span>Tự động từ attempt sai</span></article><article><small>THỜI GIAN</small><b>{workspace.results.reduce((sum, item) => sum + item.duration, 0)}</b><span>phút đã học</span></article></section>
@@ -79,26 +85,27 @@ export function WeeklySprint({ userId }: { userId: string }) {
 
     <section className="sprint-layout"><div className="sprint-sessions"><div className="section-heading"><div><p className="eyebrow">DAILY STUDY SESSIONS</p><h2>Kế hoạch T2–CN</h2></div></div>{workspace.sessions.map((session) => { const source = workspace.sources.find((item) => item.id === session.sourceMappingId); const taskCount = workspace.tasks.filter((item) => item.lessonId === session.id).length; const result = workspace.results.find((item) => item.lessonId === session.id); return <article className={`sprint-session ${session.workflowStatus.toLowerCase()}`} key={session.id}><time><b>{new Intl.DateTimeFormat("vi-VN", { weekday: "short" }).format(new Date(`${session.date}T12:00:00`))}</b>{formatDate(session.date)}</time><div className="session-copy"><small>{session.skill} · {session.duration} PHÚT · TARGET {session.targetScore ?? "—"}%</small><h3>{session.title}</h3><p>{session.objective}</p>{source ? <div className="source-chip"><b>{source.documentTitle}</b><span>{[source.unit, source.section, source.pageFrom ? `Trang ${source.pageFrom}${source.pageTo ? `–${source.pageTo}` : ""}` : "", source.audioTrack].filter(Boolean).join(" · ")}</span>{source.sourceUrl && <a href={source.sourceUrl} target="_blank" rel="noreferrer">Open Material ↗</a>}</div> : <em>Chưa map tài liệu</em>}</div><aside><span className="workflow-badge">{session.workflowStatus}</span>{result && <b>{result.score === null ? "DONE" : `${result.score.toFixed(0)}%`}</b>}<select value={session.sourceMappingId} onChange={(event) => void run(() => assignSourceToSession(session.id, event.target.value))}><option value="">Chọn tài liệu</option>{workspace.sources.map((item) => <option key={item.id} value={item.id}>{item.documentTitle} · {item.unit}</option>)}</select><button onClick={() => setModal({ kind: "tasks", session })}>Tasks ({taskCount})</button><button className="primary" disabled={!taskCount || session.workflowStatus === "DONE"} onClick={() => setRunner(session)}>{session.workflowStatus === "TODO" ? "Start Session" : session.workflowStatus === "DONE" ? "Completed" : "Continue"}</button></aside></article>; })}{!workspace.sessions.length && <div className="planner-empty">Sprint chưa có session.</div>}</div>
 
-      <aside className="source-library"><div className="section-heading"><div><p className="eyebrow">SOURCE MAPPING</p><h2>Tài liệu</h2></div><button onClick={() => setModal({ kind: "source" })}>＋ Thêm</button></div>{workspace.sources.map((source) => <article key={source.id}><small>{source.documentTitle}</small><b>{[source.unit, source.section].filter(Boolean).join(" · ") || "Tài liệu học"}</b><p>{source.pageFrom ? `Trang ${source.pageFrom}${source.pageTo ? `–${source.pageTo}` : ""}` : "Chưa đặt trang"}{source.audioTrack ? ` · ${source.audioTrack}` : ""}</p>{source.sourceUrl && <a href={source.sourceUrl} target="_blank" rel="noreferrer">Mở tài liệu ↗</a>}</article>)}{!workspace.sources.length && <div className="planner-empty">Thêm sách, unit, trang và audio track để map vào session.</div>}</aside>
+      <aside className="source-library"><div className="section-heading"><div><p className="eyebrow">SOURCE MAPPING</p><h2>Tài liệu</h2></div><button onClick={() => setModal({ kind: "source" })}>＋ Thêm</button></div>{workspace.sources.map((source) => <article key={source.id}><small>{source.documentTitle}</small><b>{[source.unit, source.section].filter(Boolean).join(" · ") || "Tài liệu học"}</b><p>{source.pageFrom ? `Trang ${source.pageFrom}${source.pageTo ? `–${source.pageTo}` : ""}` : "Chưa đặt trang"}{source.audioTrack ? ` · ${source.audioTrack}` : ""}</p>{source.sourceUrl && <a href={source.sourceUrl} target="_blank" rel="noreferrer">Mở tài liệu ↗</a>}<footer><button onClick={() => setModal({ kind: "source", item: source })}>Sửa</button><button className="delete" disabled={saving} onClick={() => { if (confirm(`Xóa Source Mapping “${source.documentTitle}”? Các session đang dùng sẽ trở về trạng thái chưa map tài liệu.`)) void run(() => deleteSourceMapping(source.id)); }}>Xóa</button></footer></article>)}{!workspace.sources.length && <div className="planner-empty">Thêm sách, unit, trang và audio track để map vào session.</div>}</aside>
     </section>
 
     <SprintQualityPanel userId={userId} planId={workspace.plan.id} sprint={sprint} sessions={workspace.sessions} onSprintGenerated={async (sprintId) => { setSelectedSprintId(sprintId); await reload(sprintId); }}/>
 
-    {modal?.kind === "week" && <SprintModal title="Tạo tuần học kế tiếp" onClose={() => setModal(null)}><WeekForm saving={saving} defaultTitle={`Week ${(workspace.sprints[0]?.weekNumber ?? 0) + 1}`} onSave={(input) => run(async () => { const created = await createWeekSprint(userId, workspace.plan!, workspace.phases, input); setSelectedSprintId(created.id); return created.id; }, selectedSprintId)}/></SprintModal>}
-    {modal?.kind === "source" && <SprintModal title="Thêm Source Mapping" onClose={() => setModal(null)}><SourceForm saving={saving} materials={workspace.materials} onSave={(input) => run(() => saveSourceMapping(userId, workspace.plan!.id, input).then(() => undefined))}/></SprintModal>}
+    {modal?.kind === "week" && <SprintModal title={modal.item ? "Sửa Weekly Sprint" : "Tạo tuần học kế tiếp"} onClose={() => setModal(null)}><WeekForm saving={saving} initial={modal.item} defaultTitle={`Week ${(workspace.sprints[0]?.weekNumber ?? 0) + 1}`} onSave={(input, report) => run(async () => { if (modal.item) { await updateWeekSprint(modal.item.id, input); return modal.item.id; } const created = await createWeekSprint(userId, workspace.plan!, workspace.phases, input); setSelectedSprintId(created.id); if (report) setImportReport(report); return created.id; }, selectedSprintId)}/></SprintModal>}
+    {modal?.kind === "source" && <SprintModal title={modal.item ? "Sửa Source Mapping" : "Thêm Source Mapping"} onClose={() => setModal(null)}><SourceForm saving={saving} materials={workspace.materials} initial={modal.item} onSave={(input) => run(() => saveSourceMapping(userId, workspace.plan!.id, input, modal.item?.id).then(() => undefined))}/></SprintModal>}
     {modal?.kind === "tasks" && <SprintModal title={`Tasks · ${modal.session.title}`} wide onClose={() => setModal(null)}><TaskManager userId={userId} session={modal.session} tasks={workspace.tasks.filter((item) => item.lessonId === modal.session.id)} saving={saving} onChange={(action) => run(action)}/></SprintModal>}
     {runner && <SessionRunner userId={userId} planId={workspace.plan.id} sprintId={sprint.id} session={runner} source={workspace.sources.find((item) => item.id === runner.sourceMappingId)} tasks={workspace.tasks.filter((item) => item.lessonId === runner.id)} attempts={workspace.attempts} onClose={() => setRunner(null)} onDone={async () => { setRunner(null); await reload(sprint.id); }}/>} 
+    {importReport && <SprintModal title="Kết quả nhập Weekly Sprint" onClose={() => setImportReport(null)}><section className="planner-form"><div className="sprint-summary"><article><small>SESSION</small><b>{importReport.sessions}</b></article><article><small>TASK</small><b>{importReport.tasks}</b></article><article><small>SOURCE MAPPING</small><b>{importReport.sources}</b></article></div><p><b>{importReport.title}</b> đã được tạo. Bạn có thể sửa Source Mapping trong thư viện bên phải và mở “Tasks” tại từng session để xử lý nội dung chưa đúng.</p>{importReport.warnings.length > 0 && <details open><summary>{importReport.warnings.length} cảnh báo cần kiểm tra</summary>{importReport.warnings.map((warning) => <p key={warning}>{warning}</p>)}</details>}<button className="primary submit" onClick={() => setImportReport(null)}>Đã hiểu</button></section></SprintModal>}
   </main>;
 }
 
 function SprintModal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal-card ${wide ? "hub-modal-wide" : ""}`}><header><div><small>WEEKLY SPRINT MVP</small><h2>{title}</h2></div><button onClick={onClose}>×</button></header>{children}</div></div>; }
 
-function WeekForm({ saving, defaultTitle, onSave }: { saving: boolean; defaultTitle: string; onSave: (input: WeekSprintInput) => void }) {
+function WeekForm({ saving, defaultTitle, initial, onSave }: { saving: boolean; defaultTitle: string; initial?: WeekSprint; onSave: (input: WeekSprintInput, report?: ImportReport) => void }) {
   const [draft, setDraft] = useState<Omit<SprintImportDraft, "warnings"> & { warnings: string[] }>({
-    title: defaultTitle,
-    startDate: mondayISO(),
-    objective: "",
-    targets: Object.fromEntries(SKILLS.map((skill) => [skill, 65])),
+    title: initial?.title ?? defaultTitle,
+    startDate: initial?.startDate ?? mondayISO(),
+    objective: initial?.objective ?? "",
+    targets: initial?.skillTargets ?? Object.fromEntries(SKILLS.map((skill) => [skill, 65])),
     sessions: [],
     warnings: [],
   });
@@ -141,31 +148,33 @@ function WeekForm({ saving, defaultTitle, onSave }: { saving: boolean; defaultTi
       setImportError(`Session “${outside.title}” nằm ngoài tuần ${draft.startDate}–${endDate}. Hãy sửa ngày bắt đầu hoặc nhập lại file.`);
       return;
     }
-    onSave({ title: draft.title.trim(), startDate: draft.startDate, objective: draft.objective.trim(), targets: draft.targets, sessions: draft.sessions });
+    const input = { title: draft.title.trim(), startDate: draft.startDate, objective: draft.objective.trim(), targets: draft.targets, sessions: initial ? undefined : draft.sessions };
+    const report = draft.sessions.length ? { title: input.title, sessions: draft.sessions.length, tasks: draft.sessions.reduce((sum, session) => sum + session.tasks.length, 0), sources: draft.sessions.filter((session) => Boolean(session.sourceTitle || session.sourceUrl)).length, warnings: draft.warnings } : undefined;
+    onSave(input, report);
   }
 
   return <form className="planner-form" onSubmit={submit}>
-    <section className="sprint-file-import">
+    {!initial && <section className="sprint-file-import">
       <div><small>QUICK SPRINT IMPORT</small><b>Nhập kế hoạch từ file</b><p>Hỗ trợ `.csv`, `.txt`, `.text`, `.md` · tối đa 1 MB.</p></div>
       <label className="sprint-file-picker"><input type="file" accept=".csv,.txt,.text,.md,text/csv,text/plain,text/markdown" onChange={(event) => void importFile(event.target.files?.[0])}/><span>{readingFile ? "Đang đọc file…" : "Chọn file"}</span></label>
       <button type="button" onClick={downloadTemplate}>Tải CSV mẫu</button>
-    </section>
+    </section>}
     {importError && <p className="import-inline-error">{importError}</p>}
-    {fileName && <section className="sprint-import-preview"><header><span><small>ĐÃ ĐỌC FILE</small><b>{fileName}</b></span><strong>{draft.sessions.length} session</strong></header>{draft.sessions.length > 0 && <div>{draft.sessions.slice(0, 5).map((session, index) => <p key={`${session.date}-${index}`}><time>{session.date}{session.studyTime ? ` · ${session.studyTime}` : ""}</time><b>{session.skill} · {session.title}</b><span>{session.duration} phút</span></p>)}{draft.sessions.length > 5 && <em>+ {draft.sessions.length - 5} session khác</em>}</div>}{!draft.sessions.length && <p className="import-fallback">File không có session hợp lệ; hệ thống sẽ tự sinh lịch theo ngày học trong lộ trình.</p>}{draft.warnings.length > 0 && <details><summary>{draft.warnings.length} cảnh báo khi đọc file</summary>{draft.warnings.map((warning) => <p key={warning}>{warning}</p>)}</details>}</section>}
+    {fileName && <section className="sprint-import-preview"><header><span><small>ĐÃ ĐỌC FILE</small><b>{fileName}</b></span><strong>{draft.sessions.length} session</strong></header>{draft.sessions.length > 0 && <div>{draft.sessions.slice(0, 5).map((session, index) => <p key={`${session.date}-${index}`}><time>{session.date}{session.studyTime ? ` · ${session.studyTime}` : ""}</time><b>{session.skill} · {session.title}</b><span>{session.duration} phút · {session.tasks.length} task{session.sourceTitle || session.sourceUrl ? " · có tài liệu" : ""}</span></p>)}{draft.sessions.length > 5 && <em>+ {draft.sessions.length - 5} session khác</em>}</div>}{!draft.sessions.length && <p className="import-fallback">File không có session hợp lệ; hệ thống sẽ tự sinh lịch theo ngày học trong lộ trình.</p>}{draft.warnings.length > 0 && <details><summary>{draft.warnings.length} cảnh báo khi đọc file</summary>{draft.warnings.map((warning) => <p key={warning}>{warning}</p>)}</details>}</section>}
     <div className="form-grid">
       <label>Ngày bắt đầu<input name="startDate" type="date" required value={draft.startDate} onChange={(event) => setDraft({ ...draft, startDate: event.target.value })}/></label>
       <label>Tên Sprint<input name="title" required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })}/></label>
       <label className="wide">Mục tiêu tuần<textarea name="objective" rows={3} required placeholder="Ví dụ: Tự làm Reading Section 2 khi bấm giờ" value={draft.objective} onChange={(event) => setDraft({ ...draft, objective: event.target.value })}/></label>
       {SKILLS.map((skill) => <label key={skill}>Target {skill}<input name={`target-${skill}`} type="number" min="0" max="100" value={draft.targets[skill] ?? 65} onChange={(event) => setDraft({ ...draft, targets: { ...draft.targets, [skill]: Number(event.target.value) } })}/></label>)}
     </div>
-    <button className="primary submit" disabled={saving || readingFile}>{saving ? "Đang tạo…" : draft.sessions.length ? `Tạo Sprint với ${draft.sessions.length} session` : "Tạo Sprint và Daily Sessions"}</button>
+    <button className="primary submit" disabled={saving || readingFile}>{saving ? "Đang lưu…" : initial ? "Lưu thay đổi" : draft.sessions.length ? `Tạo Sprint với ${draft.sessions.length} session` : "Tạo Sprint và Daily Sessions"}</button>
   </form>;
 }
 
-function SourceForm({ saving, materials, onSave }: { saving: boolean; materials: SprintWorkspace["materials"]; onSave: (input: Omit<LearningSourceMapping, "id" | "planId">) => void }) {
+function SourceForm({ saving, materials, initial, onSave }: { saving: boolean; materials: SprintWorkspace["materials"]; initial?: LearningSourceMapping; onSave: (input: Omit<LearningSourceMapping, "id" | "planId">) => void }) {
   const number = (form: FormData, key: string) => String(form.get(key) || "") ? Number(form.get(key)) : null;
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); const resourceId = String(form.get("resourceId")); const material = materials.find((item) => item.id === resourceId); onSave({ resourceId, documentTitle: String(form.get("documentTitle")).trim() || material?.title || "Tài liệu học", unit: String(form.get("unit")).trim(), section: String(form.get("section")).trim(), pageFrom: number(form, "pageFrom"), pageTo: number(form, "pageTo"), audioTrack: String(form.get("audioTrack")).trim(), scriptPage: number(form, "scriptPage"), exerciseFrom: String(form.get("exerciseFrom")).trim(), exerciseTo: String(form.get("exerciseTo")).trim(), sourceUrl: String(form.get("sourceUrl")).trim(), notes: String(form.get("notes")).trim() }); }
-  return <form className="planner-form" onSubmit={submit}><div className="form-grid"><label className="wide">Chọn từ kho tài liệu<select name="resourceId"><option value="">Nhập tài liệu thủ công</option>{materials.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.folder}</option>)}</select></label><label className="wide">Tên tài liệu<input name="documentTitle" placeholder="Để trống để dùng tên tài liệu đã chọn"/></label><label>Unit<input name="unit" placeholder="Unit 5"/></label><label>Section<input name="section" placeholder="Reading Section 2"/></label><label>Trang từ<input name="pageFrom" type="number" min="1"/></label><label>Đến trang<input name="pageTo" type="number" min="1"/></label><label>Audio track<input name="audioTrack" placeholder="Track 12"/></label><label>Script page<input name="scriptPage" type="number" min="1"/></label><label>Exercise từ<input name="exerciseFrom" placeholder="Q1–5"/></label><label>Exercise đến<input name="exerciseTo" placeholder="Q10–13"/></label><label className="wide">Link mở tài liệu<input name="sourceUrl" type="url" placeholder="Tự lấy từ tài liệu đã chọn nếu để trống"/></label><label className="wide">Ghi chú<textarea name="notes" rows={3}/></label></div><button className="primary submit" disabled={saving}>{saving ? "Đang lưu…" : "Lưu Source Mapping"}</button></form>;
+  return <form className="planner-form" onSubmit={submit}><div className="form-grid"><label className="wide">Chọn từ kho tài liệu<select name="resourceId" defaultValue={initial?.resourceId}><option value="">Nhập tài liệu thủ công</option>{materials.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.folder}</option>)}</select></label><label className="wide">Tên tài liệu<input name="documentTitle" defaultValue={initial?.documentTitle} placeholder="Để trống để dùng tên tài liệu đã chọn"/></label><label>Unit<input name="unit" defaultValue={initial?.unit} placeholder="Unit 5"/></label><label>Section<input name="section" defaultValue={initial?.section} placeholder="Reading Section 2"/></label><label>Trang từ<input name="pageFrom" type="number" min="1" defaultValue={initial?.pageFrom ?? ""}/></label><label>Đến trang<input name="pageTo" type="number" min="1" defaultValue={initial?.pageTo ?? ""}/></label><label>Audio track<input name="audioTrack" defaultValue={initial?.audioTrack} placeholder="Track 12"/></label><label>Script page<input name="scriptPage" type="number" min="1" defaultValue={initial?.scriptPage ?? ""}/></label><label>Exercise từ<input name="exerciseFrom" defaultValue={initial?.exerciseFrom} placeholder="Q1–5"/></label><label>Exercise đến<input name="exerciseTo" defaultValue={initial?.exerciseTo} placeholder="Q10–13"/></label><label className="wide">Link mở tài liệu<input name="sourceUrl" type="url" defaultValue={initial?.sourceUrl} placeholder="Tự lấy từ tài liệu đã chọn nếu để trống"/></label><label className="wide">Ghi chú<textarea name="notes" rows={3} defaultValue={initial?.notes}/></label></div><button className="primary submit" disabled={saving}>{saving ? "Đang lưu…" : "Lưu Source Mapping"}</button></form>;
 }
 
 function TaskManager({ userId, session, tasks, saving, onChange }: { userId: string; session: SprintSession; tasks: StudyTask[]; saving: boolean; onChange: (action: () => Promise<void>) => void }) {

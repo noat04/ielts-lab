@@ -392,6 +392,7 @@ cp .env.example .env.local
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=YOUR_VAPID_PUBLIC_KEY
 ```
 
 Không đặt service-role key vào biến `NEXT_PUBLIC_*`.
@@ -425,6 +426,7 @@ supabase db push
 Nên backup database production trước khi đẩy migration mới.
 
 Trong Supabase Dashboard, bật Email provider, đặt Site URL, thêm Redirect URLs và cấu hình SMTP riêng nếu dùng production.
+Để khôi phục mật khẩu hoạt động, thêm URL production và `http://localhost:3000` vào **Authentication → URL Configuration → Redirect URLs**.
 
 ## Edge Functions và AI Coach
 
@@ -438,6 +440,22 @@ supabase functions deploy parse-vocabulary-file
 ```
 
 Hai function bật `verify_jwt`, chỉ session đăng nhập hợp lệ mới gọi được.
+
+### Web Push và email nhắc lịch nền
+
+Tạo một cặp VAPID, dùng public key cho `.env.local`, sau đó lưu private key và cấu hình email dưới dạng Supabase secrets:
+
+```bash
+supabase secrets set VAPID_PUBLIC_KEY=YOUR_PUBLIC_KEY
+supabase secrets set VAPID_PRIVATE_KEY=YOUR_PRIVATE_KEY
+supabase secrets set VAPID_SUBJECT=mailto:admin@example.com
+supabase secrets set REMINDER_CRON_SECRET=YOUR_RANDOM_SECRET
+supabase secrets set RESEND_API_KEY=YOUR_RESEND_KEY
+supabase secrets set "REMINDER_FROM_EMAIL=IELTS Lab <reminder@your-domain.com>"
+supabase functions deploy send-study-reminders --no-verify-jwt
+```
+
+Trong Supabase Cron, tạo job POST tới `https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-study-reminders` mỗi 5 phút và thêm header `x-cron-secret` trùng với `REMINDER_CRON_SECRET`. Function không yêu cầu JWT vì được gọi bởi cron, nhưng từ chối request không có cron secret hợp lệ.
 
 ## Danh sách migration
 
@@ -455,6 +473,8 @@ Hai function bật `verify_jwt`, chỉ session đăng nhập hợp lệ mới g�
 | `20260927106000_upgrade_personal_material_library.sql` | Kho tài liệu cá nhân nâng cao |
 | `20260927107000_seed_beginner_guide_article.sql` | Seed bài hướng dẫn người mới |
 | `20260927108000_add_study_reminders.sql` | Giờ học, Reminder Center, trigger đồng bộ và RLS |
+| `20260927109000_complete_product_workflows.sql` | Import Sprint nguyên tử, task/source tự động và xóa Sprint |
+| `20260927110000_add_background_reminder_delivery.sql` | Web Push, email delivery, lịch sử gửi và RLS |
 
 Không chỉnh sửa migration đã chạy trên production. Hãy tạo migration mới cho thay đổi tiếp theo.
 
@@ -480,8 +500,12 @@ Bài hướng dẫn chi tiết có sẵn trong tab **Nội dung** sau khi migrat
 
 ```bash
 npm run typecheck
+npm test
 npm run build
+npm run test:db
 ```
+
+`npm test` chạy unit test parser Sprint và bộ render nội dung. `npm run test:db` chạy pgTAP trên Supabase local. Integration test chỉ chạy khi đặt `RUN_SUPABASE_INTEGRATION=1` cùng `SUPABASE_TEST_URL`, `SUPABASE_TEST_ANON_KEY`, `SUPABASE_TEST_EMAIL`, `SUPABASE_TEST_PASSWORD`; nếu thiếu, test được skip an toàn.
 
 Dự án dùng static export. Kết quả build nằm trong `out/` và có thể triển khai lên Vercel, Netlify, Cloudflare Pages hoặc shared hosting. Supabase tiếp tục cung cấp Auth, PostgreSQL, Storage và Edge Functions cho frontend tĩnh.
 
@@ -548,10 +572,13 @@ Kiểm tra function đã deploy và hai secrets `OPENAI_API_KEY`, `OPENAI_MODEL`
 | `npm run dev` | Chạy development server |
 | `npm run typecheck` | Kiểm tra TypeScript |
 | `npm run build` | Build static production vào `out/` |
+| `npm test` | Chạy unit test và integration test tùy chọn |
+| `npm run test:db` | Chạy migration/pgTAP test với Supabase local |
+| `npm run test:integration` | Kiểm tra kết nối bằng tài khoản test đã cấu hình |
 | `npm run start` | Chạy Next server; dự án hiện ưu tiên static export |
 
 ## Trạng thái dự án
 
-Dự án đã có Personal Roadmap, Weekly Sprint, Daily Session Runner, Task/Attempt/Grading, Bug Tracker/Retest, KPI/Retrospective, Carry-over/Next Week, Skill Practice, Material Library, Community Content, Vocabulary, AI Coach cơ bản và Learning Event Stream.
+Dự án đã có Personal Roadmap, Weekly Sprint có sửa/xóa và import task/source, Daily Session Runner, Task/Attempt/Grading, Bug Tracker/Retest, KPI/Retrospective, Carry-over/Next Week, Skill Practice, Material Library, Community Content Markdown/HTML, Vocabulary, AI Coach, khôi phục mật khẩu, nhắc lịch trình duyệt/Web Push/email và Learning Event Stream.
 
-Các hướng phát triển tiếp theo phù hợp là Analytics chuyên sâu, AI chấm Writing/Speaking, OAuth Google Drive, thông báo lịch học và adaptive learning dựa trên event history.
+Các hướng phát triển tiếp theo phù hợp là Analytics chuyên sâu, AI chấm Writing/Speaking, OAuth Google Drive và adaptive learning dựa trên event history.
