@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { LearningPlanner } from "@/components/LearningPlanner";
 import { ContentHub } from "@/components/ContentHub";
 import { WeeklySprint } from "@/components/WeeklySprint";
+import { StudyReminderCenter } from "@/components/StudyReminderCenter";
 import {
   deleteBugRecord,
   deleteSessionRecord,
@@ -302,7 +303,7 @@ export function IeltsDashboard() {
             </button>
           ))}
         </nav>
-        <aside className="top-actions"><button className="outline" onClick={() => setShowSources(true)}>↻ <span>Nguồn dữ liệu</span></button><button className="outline sign-out" onClick={() => void signOut()}>Đăng xuất</button></aside>
+        <aside className="top-actions"><StudyReminderCenter userId={user.id} onOpenPlanner={() => setTab("planner")}/><button className="outline" onClick={() => setShowSources(true)}>↻ <span>Nguồn dữ liệu</span></button><button className="outline sign-out" onClick={() => void signOut()}>Đăng xuất</button></aside>
       </header>
 
       {appError && <div className="status-banner" role="alert"><span>{appError}</span><button onClick={() => setAppError("")}>×</button></div>}

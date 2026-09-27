@@ -4,6 +4,10 @@ The migrations create a private, multi-user schema for the IELTS Lab dashboard.
 Every application table is protected by Row Level Security (RLS) and requires an
 authenticated Supabase user.
 
+Study reminders are stored in `study_reminder_settings` and `study_reminders`.
+Database triggers keep reminders synchronized with planned lessons and exam events;
+browser notifications are delivered by the frontend while the website is open.
+
 ## Tables
 
 - `profiles`: user-facing profile data.

@@ -104,6 +104,7 @@ export function LearningTools({
       await saveLesson(userId, plan.id, {
         phaseId: phase?.id ?? "",
         date,
+        studyTime: "",
         title: item.title,
         description: item.reason,
         skill: CORE_SKILLS.includes(item.skill) ? item.skill : "Review",

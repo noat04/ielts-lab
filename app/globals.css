@@ -371,3 +371,35 @@ button:disabled { cursor:wait;opacity:.65; }
   .topbar nav { justify-content:flex-start;max-width:100%;overflow-x:auto; }
   .topbar nav button { flex:0 0 auto; }
 }
+
+/* Study reminders */
+.reminder-bell { position:relative;min-height:42px;display:flex;align-items:center;gap:6px;padding:0 11px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.72);color:var(--green);font-size:.68rem;font-weight:800; }
+.reminder-bell:hover { border-color:var(--green);background:white; }
+.reminder-bell>i { position:absolute;right:-5px;top:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid var(--paper);border-radius:20px;background:#aa4d38;color:white;font-size:.48rem;font-style:normal; }
+.reminder-center { width:min(1040px,100%);max-height:calc(100vh - 30px);overflow:auto;padding:25px;border:1px solid rgba(255,255,255,.6);border-radius:23px;background:var(--card);box-shadow:0 30px 80px rgba(0,0,0,.22); }
+.reminder-center>header { display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px; }
+.reminder-center>header small { color:var(--green2);font-size:.58rem;font-weight:900;letter-spacing:.1em; }
+.reminder-center>header h2 { margin:3px 0 0;font:800 1.65rem Manrope; }
+.reminder-center>header p { margin:5px 0 0;color:var(--muted);font-size:.64rem; }
+.reminder-center>header>button { width:36px;height:36px;border:1px solid var(--line);border-radius:9px;background:white;font-size:1.3rem; }
+.reminder-layout { display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:14px; }
+.reminder-list,.reminder-settings { min-width:0;padding:17px;border:1px solid var(--line);border-radius:16px;background:#faf9f5; }
+.reminder-list-head { display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:10px; }
+.reminder-list-head b { font:800 .86rem Manrope; }.reminder-list-head span { color:var(--muted);font-size:.56rem; }
+.reminder-list article { display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;margin-top:7px;padding:12px;border:1px solid var(--line);border-radius:11px;background:white; }
+.reminder-list article.due { border-color:#e0b75b;background:#fff9e8; }
+.reminder-icon { width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:var(--mint);color:var(--green);font-weight:900; }
+.reminder-list article>div { min-width:0;display:grid;gap:2px; }.reminder-list article small { color:var(--green2);font-size:.49rem;font-weight:900; }.reminder-list article b { font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }.reminder-list article p { margin:0;color:var(--muted);font-size:.54rem; }
+.reminder-list article aside { display:flex;gap:4px; }.reminder-list article aside button,.reminder-open-planner { min-height:29px;padding:0 7px;border:1px solid var(--line);border-radius:7px;background:white;color:var(--muted);font-size:.5rem;font-weight:800; }.reminder-list article aside .dismiss { color:#a44f3d; }
+.reminder-open-planner { width:100%;min-height:37px;margin-top:10px;color:var(--green); }
+.reminder-empty { padding:30px;color:var(--muted);text-align:center;font-size:.64rem; }
+.reminder-settings { display:grid;align-content:start;gap:11px;background:#f4f7f4; }.reminder-settings h3 { margin:0 0 3px;font:800 .9rem Manrope; }
+.reminder-settings>label:not(.reminder-toggle) { display:grid;gap:5px;color:var(--muted);font-size:.57rem;font-weight:750; }.reminder-settings input,.reminder-settings select { width:100%;min-height:38px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink); }
+.reminder-toggle { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border-radius:9px;background:white; }.reminder-toggle>span { display:grid;gap:2px; }.reminder-toggle b { font-size:.61rem; }.reminder-toggle small { color:var(--muted);font-size:.5rem; }.reminder-toggle input { width:18px;min-height:18px;accent-color:var(--green); }
+.browser-notification { display:grid;grid-template-columns:1fr auto;gap:3px 8px;padding:10px;border:1px solid var(--line);border-radius:9px;background:white; }.browser-notification b { font-size:.59rem; }.browser-notification small { grid-column:1;color:var(--muted);font-size:.5rem; }.browser-notification button { grid-column:2;grid-row:1/3;padding:0 8px;border:1px solid var(--green);border-radius:7px;background:white;color:var(--green);font-size:.5rem;font-weight:800; }
+.reminder-note { margin:0;color:var(--muted);font-size:.52rem;line-height:1.5; }.reminder-error { margin-bottom:12px;padding:10px;border-radius:9px;background:#fff1ed;color:#964734;font-size:.61rem; }
+.lesson-row time small { display:block;margin-top:3px;color:var(--green2);font-size:.55rem;font-weight:800; }
+.planner-form label>small { color:var(--muted);font-size:.52rem;font-weight:500; }
+
+@media (max-width:850px) { .reminder-layout { grid-template-columns:1fr; }.reminder-settings { grid-template-columns:1fr 1fr; }.reminder-settings h3,.reminder-toggle,.browser-notification,.reminder-settings>.primary,.reminder-note { grid-column:1/-1; } }
+@media (max-width:620px) { .reminder-center { padding:18px 13px; }.reminder-list { padding:11px; }.reminder-list article { grid-template-columns:32px 1fr; }.reminder-list article aside { grid-column:2;flex-wrap:wrap; }.reminder-settings { grid-template-columns:1fr; }.reminder-settings>* { grid-column:1!important; }.reminder-bell-label { display:none; }.reminder-bell { width:42px;justify-content:center;padding:0; } }

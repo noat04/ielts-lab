@@ -33,6 +33,7 @@ export type DailyLesson = {
   planId: string;
   phaseId: string;
   date: string;
+  studyTime: string;
   title: string;
   description: string;
   skill: string;
@@ -134,6 +135,7 @@ function mapLesson(row: Record<string, any>): DailyLesson {
     planId: row.plan_id,
     phaseId: row.phase_id || "",
     date: row.lesson_date,
+    studyTime: row.study_time?.slice(0, 5) || "",
     title: row.title,
     description: row.description,
     skill: row.skill,
@@ -322,7 +324,7 @@ export async function deletePhase(id: string) {
 
 export async function saveLesson(userId: string, planId: string, input: LessonInput, id?: string): Promise<DailyLesson> {
   const client = getSupabase();
-  const payload = { user_id: userId, plan_id: planId, phase_id: input.phaseId || null, lesson_date: input.date, title: input.title, description: input.description, skill: input.skill, duration_minutes: input.duration, priority: input.priority, status: input.status, resource_url: input.resourceUrl || null, completed_at: input.status === "completed" ? new Date().toISOString() : null };
+  const payload = { user_id: userId, plan_id: planId, phase_id: input.phaseId || null, lesson_date: input.date, study_time: input.studyTime || null, title: input.title, description: input.description, skill: input.skill, duration_minutes: input.duration, priority: input.priority, status: input.status, resource_url: input.resourceUrl || null, completed_at: input.status === "completed" ? new Date().toISOString() : null };
   const query = id ? client.from("daily_lessons").update(payload).eq("id", id) : client.from("daily_lessons").insert(payload);
   const { data, error } = await query.select().single();
   throwIfError(error);

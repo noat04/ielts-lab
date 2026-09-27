@@ -264,6 +264,12 @@ Ngoài Study Log, backend có event stream append-only:
 
 Event stream là nền cho Analytics, audit và AI recommendation.
 
+### 28. Nhắc lịch học và lịch thi
+
+Reminder Center tự động lấy dữ liệu từ bài học và kỳ thi đã lên kế hoạch. Người dùng có thể đặt giờ riêng cho từng bài học, chọn giờ học mặc định, cấu hình nhắc trước bài học/kỳ thi, hoãn 15 phút hoặc 1 giờ và bỏ qua lời nhắc.
+
+Lời nhắc được lưu trong Supabase và đồng bộ theo tài khoản. Thông báo trình duyệt xuất hiện khi website đang mở và người dùng đã cấp quyền; lịch sắp tới hoặc quá hạn vẫn luôn có thể xem từ biểu tượng chuông trên thanh điều hướng.
+
 ## Kiến trúc kỹ thuật
 
 | Thành phần | Công nghệ |
@@ -302,6 +308,7 @@ lib/supabase/
   learning-tools.ts           Diagnostic, schedule, tests, AI, upload
   sprints.ts                  Sprint, task, attempt, grading
   quality.ts                  Bug lifecycle, KPI và retrospective
+  reminders.ts                Cấu hình và trạng thái nhắc lịch
   content.ts                  Bài viết và từ vựng
 supabase/
   migrations/                 Schema và dữ liệu seed
@@ -432,6 +439,7 @@ Hai function bật `verify_jwt`, chỉ session đăng nhập hợp lệ mới g�
 | `20260927105000_add_skill_practice_phase3.sql` | Workflow kỹ năng, recording, event stream |
 | `20260927106000_upgrade_personal_material_library.sql` | Kho tài liệu cá nhân nâng cao |
 | `20260927107000_seed_beginner_guide_article.sql` | Seed bài hướng dẫn người mới |
+| `20260927108000_add_study_reminders.sql` | Giờ học, Reminder Center, trigger đồng bộ và RLS |
 
 Không chỉnh sửa migration đã chạy trên production. Hãy tạo migration mới cho thay đổi tiếp theo.
 
@@ -449,6 +457,7 @@ Không chỉnh sửa migration đã chạy trên production. Hãy tạo migratio
 10. Lên lịch retest trong Sổ lỗi.
 11. Viết Weekly Retrospective.
 12. Dùng Next Week Generator.
+13. Bật **Nhắc lịch** trên thanh điều hướng và cấp quyền thông báo trình duyệt.
 
 Bài hướng dẫn chi tiết có sẵn trong tab **Nội dung** sau khi migration seed được áp dụng.
 
