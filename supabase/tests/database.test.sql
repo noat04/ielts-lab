@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(17);
 
 select has_table('public', 'week_sprints', 'week_sprints exists');
 select has_table('public', 'learning_source_mappings', 'source mappings exist');
@@ -14,6 +14,7 @@ select has_function('public', 'ielts_lab_update_week_sprint', array['uuid', 'dat
 select has_function('public', 'ielts_lab_refresh_study_reminders', array[]::text[], 'reminder refresh RPC exists');
 select col_is_not_null('public', 'study_reminder_settings', 'push_notifications', 'push setting is required');
 select col_is_not_null('public', 'study_reminder_settings', 'email_notifications', 'email setting is required');
+select col_is_not_null('public', 'daily_lessons', 'planning_notes', 'session planning notes are required');
 select is((select relrowsecurity from pg_class where oid = 'public.push_subscriptions'::regclass), true, 'push subscriptions use RLS');
 select is((select relrowsecurity from pg_class where oid = 'public.reminder_deliveries'::regclass), true, 'reminder deliveries use RLS');
 select has_index('public', 'push_subscriptions', 'push_subscriptions_user_active_idx', 'push lookup index exists');

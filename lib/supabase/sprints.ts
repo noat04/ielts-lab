@@ -20,7 +20,7 @@ export type LearningSourceMapping = {
 export type SprintSession = {
   id: string; planId: string; weekSprintId: string; sourceMappingId: string; date: string;
   skill: string; title: string; objective: string; duration: number; targetScore: number | null;
-  actualScore: number | null; workflowStatus: SessionWorkflowStatus; startedAt: string;
+  actualScore: number | null; workflowStatus: SessionWorkflowStatus; startedAt: string; planningNotes: string;
 };
 
 export type StudyTask = {
@@ -52,6 +52,7 @@ export type WeekSprintInput = {
   objective: string;
   targets: Record<string, number>;
   sessions?: ImportedSprintSession[];
+  planningNotes?: Record<string, string>;
 };
 
 export type WeekSprintUpdate = Pick<WeekSprintInput, "startDate" | "title" | "objective" | "targets">;
@@ -62,7 +63,7 @@ function mapPhase(row: Record<string, any>): PlanPhase { return { id: row.id, pl
 function mapSprint(row: Record<string, any>): WeekSprint { return { id: row.id, planId: row.plan_id, weekNumber: row.week_number, startDate: row.start_date, endDate: row.end_date, title: row.title, objective: row.objective, skillTargets: row.skill_targets ?? {}, status: row.status }; }
 function mapSource(row: Record<string, any>): LearningSourceMapping { return { id: row.id, planId: row.plan_id, resourceId: row.resource_id || "", documentTitle: row.document_title, unit: row.unit, section: row.section, pageFrom: row.page_from, pageTo: row.page_to, audioTrack: row.audio_track, scriptPage: row.script_page, exerciseFrom: row.exercise_from, exerciseTo: row.exercise_to, sourceUrl: row.source_url || "", notes: row.notes }; }
 function mapMaterial(row: Record<string, any>): PlanResource { return { id: row.id, planId: row.plan_id, key: row.resource_key, title: row.title, url: row.url, type: row.resource_type, description: row.description, primary: row.is_primary, storagePath: row.storage_path || "", mimeType: row.mime_type || "", fileSize: row.file_size ?? null, provider: row.source_provider ?? (row.storage_path ? "LOCAL_STORAGE" : "EXTERNAL_LINK"), externalFileId: row.external_file_id || "", originalFilename: row.original_filename || "", previewUrl: row.preview_url || "", folder: row.folder_name || "Chưa phân loại", tags: row.tags ?? [], skills: row.skills ?? [], accessStatus: row.access_status ?? "READY", favorite: Boolean(row.is_favorite), lastOpenedAt: row.last_opened_at || "", createdAt: row.created_at }; }
-function mapSession(row: Record<string, any>): SprintSession { return { id: row.id, planId: row.plan_id, weekSprintId: row.week_sprint_id || "", sourceMappingId: row.source_mapping_id || "", date: row.lesson_date, skill: row.skill, title: row.title, objective: row.objective, duration: row.duration_minutes, targetScore: row.target_score === null ? null : Number(row.target_score), actualScore: row.actual_score === null ? null : Number(row.actual_score), workflowStatus: row.workflow_status, startedAt: row.started_at || "" }; }
+function mapSession(row: Record<string, any>): SprintSession { return { id: row.id, planId: row.plan_id, weekSprintId: row.week_sprint_id || "", sourceMappingId: row.source_mapping_id || "", date: row.lesson_date, skill: row.skill, title: row.title, objective: row.objective, duration: row.duration_minutes, targetScore: row.target_score === null ? null : Number(row.target_score), actualScore: row.actual_score === null ? null : Number(row.actual_score), workflowStatus: row.workflow_status, startedAt: row.started_at || "", planningNotes: row.planning_notes || "" }; }
 function mapTask(row: Record<string, any>): StudyTask { return { id: row.id, lessonId: row.lesson_id, position: row.position, taskType: row.task_type, title: row.title, instructions: row.instructions, question: row.question, answerType: row.answer_type, correctAnswer: row.correct_answer, points: Number(row.points), metadata: row.metadata ?? {}, workflowType: row.workflow_type ?? "STANDARD", workflowConfig: row.workflow_config ?? {} }; }
 function mapAttempt(row: Record<string, any>): TaskAttempt { return { id: row.id, taskId: row.task_id, attemptNumber: row.attempt_number, userAnswer: row.user_answer, isCorrect: row.is_correct, score: Number(row.score), feedback: row.feedback, evidence: row.evidence, submittedAt: row.submitted_at, structuredResponse: row.structured_response ?? {}, audioPath: row.audio_path || "", audioDuration: row.audio_duration_seconds }; }
 function mapResult(row: Record<string, any>): SessionResult { return { id: row.id, lessonId: row.lesson_id, duration: row.duration_minutes, total: row.total_questions, correct: row.correct_answers, wrong: row.wrong_answers, score: row.score_percent === null ? null : Number(row.score_percent), newBugs: row.new_bugs, notes: row.notes, completedAt: row.completed_at }; }
@@ -140,14 +141,14 @@ export async function createWeekSprint(userId: string, plan: LearningPlan, phase
   const sessions = input.sessions?.length
     ? input.sessions.map((session, index) => {
       const phase = phases.find((item) => session.date >= item.startDate && session.date <= item.endDate);
-      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: session.date, study_time: session.studyTime || null, title: session.title, description: session.objective, objective: session.objective || input.objective, skill: session.skill, duration_minutes: session.duration, priority: "medium", status: "todo", workflow_status: "TODO", target_score: session.targetScore ?? input.targets[session.skill] ?? null, generation_source: "manual", source_key: `sprint-import-${sprint.id}-${index}-${session.date}` };
+      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: session.date, study_time: session.studyTime || null, title: session.title, description: session.objective, objective: session.objective || input.objective, planning_notes: "", skill: session.skill, duration_minutes: session.duration, priority: "medium", status: "todo", workflow_status: "TODO", target_score: session.targetScore ?? input.targets[session.skill] ?? null, generation_source: "manual", source_key: `sprint-import-${sprint.id}-${index}-${session.date}` };
     })
     : Array.from({ length: 7 }, (_, offset) => {
       const date = new Date(start); date.setDate(start.getDate() + offset);
       if (!plan.studyDays.includes(date.getDay())) return null;
       const dateValue = iso(date); const skill = SKILL_BY_DAY[date.getDay()] ?? "Review";
       const phase = phases.find((item) => dateValue >= item.startDate && dateValue <= item.endDate);
-      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: dateValue, title: `${skill} · Week ${weekNumber}`, description: input.objective, objective: `Hoàn thành phiên ${skill} theo mục tiêu tuần.`, skill, duration_minutes: Math.max(15, Math.round(plan.weeklyMinutes / Math.max(1, plan.studyDays.length))), priority: "medium", status: "todo", workflow_status: "TODO", target_score: input.targets[skill] ?? null, generation_source: "automatic", source_key: `sprint-${sprint.id}-${dateValue}` };
+      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: dateValue, study_time: null, title: `${skill} · Week ${weekNumber}`, description: input.objective, objective: `Hoàn thành phiên ${skill} theo mục tiêu tuần.`, planning_notes: input.planningNotes?.[dateValue]?.trim() || "", skill, duration_minutes: Math.max(15, Math.round(plan.weeklyMinutes / Math.max(1, plan.studyDays.length))), priority: "medium", status: "todo", workflow_status: "TODO", target_score: input.targets[skill] ?? null, generation_source: "automatic", source_key: `sprint-${sprint.id}-${dateValue}` };
     }).filter((session): session is NonNullable<typeof session> => session !== null);
   if (sessions.length) {
     const inserted = await client.from("daily_lessons").insert(sessions);
@@ -192,6 +193,11 @@ export async function deleteSourceMapping(id: string) {
 
 export async function assignSourceToSession(sessionId: string, sourceId: string) {
   const { error } = await getSupabase().from("daily_lessons").update({ source_mapping_id: sourceId || null }).eq("id", sessionId); throwIfError(error);
+}
+
+export async function updateSessionPlanningNotes(sessionId: string, planningNotes: string) {
+  const { error } = await getSupabase().from("daily_lessons").update({ planning_notes: planningNotes.trim() }).eq("id", sessionId);
+  throwIfError(error);
 }
 
 type TaskInput = Omit<StudyTask, "id" | "lessonId" | "position" | "metadata" | "workflowConfig"> & { metadata?: Record<string, unknown>; workflowConfig?: Record<string, unknown> };

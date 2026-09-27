@@ -475,6 +475,7 @@ Trong Supabase Cron, tạo job POST tới `https://YOUR_PROJECT_REF.supabase.co/
 | `20260927108000_add_study_reminders.sql` | Giờ học, Reminder Center, trigger đồng bộ và RLS |
 | `20260927109000_complete_product_workflows.sql` | Import Sprint nguyên tử, task/source tự động và xóa Sprint |
 | `20260927110000_add_background_reminder_delivery.sql` | Web Push, email delivery, lịch sử gửi và RLS |
+| `20260927111000_add_session_planning_notes.sql` | Ghi chú chuẩn bị riêng cho từng Daily Session |
 
 Không chỉnh sửa migration đã chạy trên production. Hãy tạo migration mới cho thay đổi tiếp theo.
 
