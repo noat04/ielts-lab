@@ -22,6 +22,19 @@ authenticated Supabase user.
 - Storage bucket `learning-materials`: private user uploads, limited to 50 MB per file.
 - `content_articles`: community articles with WordPress-style SEO metadata.
 - `vocabulary_topics`, `vocabulary_entries`: shared vocabulary library and bulk imports.
+- `week_sprints`: weekly learning sprints and skill targets.
+- `learning_source_mappings`: document, unit, page, audio, and exercise mapping.
+- `study_tasks`, `task_attempts`: session practice and grading history.
+- `session_results`: canonical completed-session result used to create the study log.
+- `error_type_catalog`: standardized learning-error taxonomy.
+- `bug_retests`: immutable retest history for bug lifecycle decisions.
+- `sprint_kpis`: recalculable weekly quality snapshots.
+- `weekly_retrospectives`: weekly reflection and next-week focus.
+- `carry_over_items`: source-to-target trace for unfinished sessions moved to a new sprint.
+- `skill_kpis`: per-skill target, actual score, study time, attempts, and bug count.
+- `learning_events`: append-only event stream for the learning workflow and future analytics.
+- Storage bucket `speaking-recordings`: private browser recordings for Speaking attempts.
+- `learning_resources`: upgraded personal library metadata for local files, Google Drive links, folders, tags, skills, favorites, and preview state.
 
 ## Apply locally
 

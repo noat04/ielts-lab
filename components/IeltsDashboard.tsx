@@ -6,6 +6,7 @@ import { DASHBOARD_DATA } from "@/lib/dashboard-data";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { LearningPlanner } from "@/components/LearningPlanner";
 import { ContentHub } from "@/components/ContentHub";
+import { WeeklySprint } from "@/components/WeeklySprint";
 import {
   deleteBugRecord,
   deleteSessionRecord,
@@ -25,7 +26,7 @@ import {
   type StudySession,
 } from "@/lib/supabase/dashboard";
 
-type Tab = "overview" | "planner" | "content" | "bugs" | "journey";
+type Tab = "overview" | "sprint" | "planner" | "content" | "bugs" | "journey";
 
 const BUG_SKILLS: Skill[] = ["Grammar / Vocab", "Reading", "Writing", "Speaking", "Listening"];
 const ALL_SKILLS: Skill[] = ["Listening", "Reading", "Writing", "Speaking", "Grammar / Vocab"];
@@ -295,9 +296,9 @@ export function IeltsDashboard() {
       <header className="topbar">
         <button className="brand" onClick={() => setTab("overview")}><span>IL</span><b>IELTS LAB<small>PERSONAL DASHBOARD</small></b></button>
         <nav>
-          {(["overview", "planner", "content", "bugs", "journey"] as Tab[]).map((item) => (
+          {(["overview", "sprint", "planner", "content", "bugs", "journey"] as Tab[]).map((item) => (
             <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-              {item === "overview" ? "Tổng quan" : item === "planner" ? "Lộ trình" : item === "content" ? "Nội dung" : item === "bugs" ? "Sổ lỗi" : "Hành trình"}{item === "bugs" && <i>{openBugs.length}</i>}
+              {item === "overview" ? "Tổng quan" : item === "sprint" ? "Sprint" : item === "planner" ? "Lộ trình" : item === "content" ? "Nội dung" : item === "bugs" ? "Sổ lỗi" : "Hành trình"}{item === "bugs" && <i>{openBugs.length}</i>}
             </button>
           ))}
         </nav>
@@ -344,6 +345,8 @@ export function IeltsDashboard() {
       )}
 
       {tab === "planner" && <LearningPlanner userId={user.id}/>}
+
+      {tab === "sprint" && <WeeklySprint userId={user.id}/>}
 
       {tab === "content" && <ContentHub userId={user.id}/>}
 

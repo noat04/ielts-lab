@@ -281,6 +281,9 @@ export async function uploadLearningMaterial(userId: string, planId: string, fil
     storage_path: path,
     mime_type: file.type || null,
     file_size: file.size,
+    source_provider: "LOCAL_STORAGE",
+    original_filename: file.name,
+    folder_name: "IELTS",
   }).select().single();
   if (error) {
     await client.storage.from("learning-materials").remove([path]);
@@ -299,6 +302,17 @@ export async function uploadLearningMaterial(userId: string, planId: string, fil
     storagePath: path,
     mimeType: data.mime_type ?? "",
     fileSize: data.file_size,
+    provider: data.source_provider ?? "LOCAL_STORAGE",
+    externalFileId: data.external_file_id ?? "",
+    originalFilename: data.original_filename ?? file.name,
+    previewUrl: signed.data?.signedUrl ?? "",
+    folder: data.folder_name ?? "Chưa phân loại",
+    tags: data.tags ?? [],
+    skills: data.skills ?? [],
+    accessStatus: data.access_status ?? "READY",
+    favorite: Boolean(data.is_favorite),
+    lastOpenedAt: data.last_opened_at ?? "",
+    createdAt: data.created_at,
   };
 }
 

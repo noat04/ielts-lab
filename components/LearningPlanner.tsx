@@ -2,24 +2,22 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { LearningTools } from "@/components/LearningTools";
+import { PersonalResourceLibrary } from "@/components/PersonalResourceLibrary";
 import {
   createLearningPlan,
   deleteExam,
   deleteLesson,
   deletePhase,
-  deletePlanResource,
   loadPlannerWorkspace,
   saveExam,
   saveLesson,
   savePhase,
-  savePlanResource,
   setLessonStatus,
   updateLearningPlan,
   type DailyLesson,
   type ExamEvent,
   type LearningPlan,
   type PlanPhase,
-  type PlanResource,
   type PlannerWorkspace,
 } from "@/lib/supabase/planner";
 
@@ -28,7 +26,6 @@ type ModalState =
   | { kind: "phase"; item?: PlanPhase }
   | { kind: "lesson"; item?: DailyLesson; date?: string }
   | { kind: "exam"; item?: ExamEvent }
-  | { kind: "resource"; item?: PlanResource }
   | null;
 
 const DAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -147,13 +144,12 @@ export function LearningPlanner({ userId }: { userId: string }) {
       <article className="planner-panel"><div className="section-heading"><div><p className="eyebrow">LỊCH THI CỬ</p><h2>Kỳ thi & kiểm tra</h2></div><button onClick={() => setModal({ kind: "exam" })}>＋ Thêm</button></div><div className="exam-list">{exams.map((exam) => <div key={exam.id}><time><b>{exam.date.slice(8)}</b>THÁNG {Number(exam.date.slice(5, 7))}</time><span><small>{exam.type.toUpperCase()} · {exam.time || "Chưa đặt giờ"}</small><b>{exam.title}</b><p>{exam.venue || exam.note || `Mục tiêu Band ${exam.targetBand ?? plan.targetBand}`}</p></span><aside><button onClick={() => setModal({ kind: "exam", item: exam })}>Sửa</button><button className="delete" onClick={() => { if (confirm(`Xóa lịch thi “${exam.title}”?`)) void run(() => deleteExam(exam.id)); }}>Xóa</button></aside></div>)}{!exams.length && <div className="planner-empty">Chưa có kỳ thi hoặc checkpoint.</div>}</div></article>
     </section>
 
-    <section className="resource-panel"><div className="section-heading"><div><p className="eyebrow">THƯ VIỆN CÁ NHÂN</p><h2>Tài liệu học tập</h2></div><button className="primary" onClick={() => setModal({ kind: "resource" })}>＋ Thêm tài liệu</button></div><div className="resource-grid">{resources.map((resource) => <article key={resource.id}><small>{resource.type.toUpperCase()}{resource.primary ? " · CHÍNH" : ""}{resource.storagePath ? " · SUPABASE STORAGE" : ""}</small><h3>{resource.title}</h3><p>{resource.description || resource.url}</p><footer><a href={resource.url} target="_blank" rel="noreferrer">Mở tài liệu ↗</a><span><button onClick={() => setModal({ kind: "resource", item: resource })}>Sửa</button><button className="delete" onClick={() => { if (confirm(`Xóa tài liệu “${resource.title}”?`)) void run(() => deletePlanResource(resource)); }}>Xóa</button></span></footer></article>)}{!resources.length && <div className="planner-empty">Thêm sách, link Drive, video hoặc tài liệu của riêng bạn.</div>}</div></section>
+    <PersonalResourceLibrary userId={userId} planId={plan.id} resources={resources} onChanged={() => reload(plan.id)}/>
 
     {modal?.kind === "plan" && <PlannerModal title={modal.item ? "Chỉnh sửa lộ trình" : "Tạo lộ trình mới"} onClose={() => setModal(null)}><PlanForm initial={modal.item} saving={saving} onSave={(input) => run(async () => { const saved = modal.item ? await updateLearningPlan(userId, modal.item.id, input) : await createLearningPlan(userId, input); setSelectedPlanId(saved.id); }, modal.item?.id)}/></PlannerModal>}
     {modal?.kind === "phase" && <PlannerModal title={modal.item ? "Chỉnh sửa giai đoạn" : "Thêm giai đoạn"} onClose={() => setModal(null)}><PhaseForm initial={modal.item} plan={plan} position={phases.length} saving={saving} onSave={(input) => run(() => savePhase(userId, plan.id, input, modal.item?.id).then(() => undefined))}/></PlannerModal>}
     {modal?.kind === "lesson" && <PlannerModal title={modal.item ? "Chỉnh sửa bài học" : "Thêm bài học"} onClose={() => setModal(null)}><LessonForm initial={modal.item} initialDate={modal.date} phases={phases} saving={saving} onSave={(input) => run(() => saveLesson(userId, plan.id, input, modal.item?.id).then(() => undefined))}/></PlannerModal>}
     {modal?.kind === "exam" && <PlannerModal title={modal.item ? "Chỉnh sửa lịch thi" : "Thêm kỳ thi"} onClose={() => setModal(null)}><ExamForm initial={modal.item} targetBand={plan.targetBand} saving={saving} onSave={(input) => run(() => saveExam(userId, plan.id, input, modal.item?.id).then(() => undefined))}/></PlannerModal>}
-    {modal?.kind === "resource" && <PlannerModal title={modal.item ? "Chỉnh sửa tài liệu" : "Thêm tài liệu"} onClose={() => setModal(null)}><ResourceForm initial={modal.item} saving={saving} onSave={(input) => run(() => savePlanResource(userId, plan.id, input, modal.item?.id).then(() => undefined))}/></PlannerModal>}
   </main>;
 }
 
@@ -184,9 +180,4 @@ function LessonForm({ initial, initialDate, phases, saving, onSave }: { initial?
 function ExamForm({ initial, targetBand, saving, onSave }: { initial?: ExamEvent; targetBand: number; saving: boolean; onSave: (input: Omit<ExamEvent, "id" | "planId">) => void }) {
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ title: String(form.get("title")).trim(), type: String(form.get("type")) as ExamEvent["type"], date: String(form.get("date")), time: String(form.get("time")), venue: String(form.get("venue")).trim(), targetBand: Number(form.get("targetBand")), note: String(form.get("note")).trim(), status: String(form.get("status")) as ExamEvent["status"] }); }
   return <form className="planner-form" onSubmit={submit}><div className="form-grid"><label className="wide">Tên kỳ thi<input name="title" required defaultValue={initial?.title || "IELTS Mock Test"}/></label><label>Loại<select name="type" defaultValue={initial?.type || "mock"}><option value="official">Thi chính thức</option><option value="mock">Mock test</option><option value="checkpoint">Checkpoint</option></select></label><label>Ngày<input name="date" type="date" required defaultValue={initial?.date || futureISO(30)}/></label><label>Giờ<input name="time" type="time" defaultValue={initial?.time}/></label><label>Band mục tiêu<input name="targetBand" type="number" min={0} max={9} step={0.5} defaultValue={initial?.targetBand ?? targetBand}/></label><label className="wide">Địa điểm<input name="venue" defaultValue={initial?.venue}/></label><label>Trạng thái<select name="status" defaultValue={initial?.status || "planned"}><option value="planned">Đã lên lịch</option><option value="completed">Hoàn thành</option><option value="cancelled">Đã hủy</option></select></label><label className="wide">Ghi chú<textarea name="note" rows={3} defaultValue={initial?.note}/></label></div><button className="primary submit" disabled={saving}>{saving ? "Đang lưu…" : "Lưu lịch thi"}</button></form>;
-}
-
-function ResourceForm({ initial, saving, onSave }: { initial?: PlanResource; saving: boolean; onSave: (input: Omit<PlanResource, "id" | "planId" | "key" | "storagePath" | "mimeType" | "fileSize">) => void }) {
-  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ title: String(form.get("title")).trim(), url: String(form.get("url")).trim(), type: String(form.get("type")) as PlanResource["type"], description: String(form.get("description")).trim(), primary: form.get("primary") === "on" }); }
-  return <form className="planner-form" onSubmit={submit}><div className="form-grid"><label className="wide">Tên tài liệu<input name="title" required defaultValue={initial?.title}/></label><label className="wide">Đường dẫn<input name="url" type="url" required defaultValue={initial?.url}/></label><label>Loại<select name="type" defaultValue={initial?.type || "document"}><option value="document">Tài liệu</option><option value="spreadsheet">Bảng theo dõi</option><option value="book">Sách</option><option value="audio">Audio</option><option value="video">Video</option><option value="other">Khác</option></select></label><label className="check-label"><input name="primary" type="checkbox" defaultChecked={initial?.primary}/>Tài liệu chính</label><label className="wide">Mô tả<textarea name="description" rows={3} defaultValue={initial?.description}/></label></div><button className="primary submit" disabled={saving}>{saving ? "Đang lưu…" : "Lưu tài liệu"}</button></form>;
 }

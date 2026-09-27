@@ -67,6 +67,17 @@ export type PlanResource = {
   storagePath: string;
   mimeType: string;
   fileSize: number | null;
+  provider: "LOCAL_STORAGE" | "GOOGLE_DRIVE" | "EXTERNAL_LINK";
+  externalFileId: string;
+  originalFilename: string;
+  previewUrl: string;
+  folder: string;
+  tags: string[];
+  skills: string[];
+  accessStatus: "READY" | "PROCESSING" | "BROKEN" | "ARCHIVED";
+  favorite: boolean;
+  lastOpenedAt: string;
+  createdAt: string;
 };
 
 export type PlannerWorkspace = {
@@ -82,7 +93,7 @@ type PlanInput = Omit<LearningPlan, "id" | "status"> & { status?: PlanStatus };
 type PhaseInput = Omit<PlanPhase, "id" | "planId">;
 type LessonInput = Omit<DailyLesson, "id" | "planId">;
 type ExamInput = Omit<ExamEvent, "id" | "planId">;
-type ResourceInput = Omit<PlanResource, "id" | "planId" | "key" | "storagePath" | "mimeType" | "fileSize">;
+export type ResourceInput = Omit<PlanResource, "id" | "planId" | "key" | "storagePath" | "mimeType" | "fileSize" | "lastOpenedAt" | "createdAt">;
 
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -161,6 +172,17 @@ function mapResource(row: Record<string, any>): PlanResource {
     storagePath: row.storage_path || "",
     mimeType: row.mime_type || "",
     fileSize: row.file_size ?? null,
+    provider: row.source_provider ?? (row.storage_path ? "LOCAL_STORAGE" : "EXTERNAL_LINK"),
+    externalFileId: row.external_file_id || "",
+    originalFilename: row.original_filename || "",
+    previewUrl: row.preview_url || "",
+    folder: row.folder_name || "Chưa phân loại",
+    tags: row.tags ?? [],
+    skills: row.skills ?? [],
+    accessStatus: row.access_status ?? "READY",
+    favorite: Boolean(row.is_favorite),
+    lastOpenedAt: row.last_opened_at || "",
+    createdAt: row.created_at,
   };
 }
 
@@ -195,7 +217,7 @@ export async function loadPlannerWorkspace(selectedPlanId?: string): Promise<Pla
       const resource = mapResource(row);
       if (!resource.storagePath) return resource;
       const { data } = await client.storage.from("learning-materials").createSignedUrl(resource.storagePath, 3600);
-      return { ...resource, url: data?.signedUrl || "" };
+      return { ...resource, url: data?.signedUrl || "", previewUrl: data?.signedUrl || "" };
     })),
   };
 }
@@ -341,12 +363,63 @@ export async function savePlanResource(userId: string, planId: string, input: Re
     resource_type: input.type,
     description: input.description,
     is_primary: input.primary,
+    source_provider: input.provider,
+    external_file_id: input.externalFileId || null,
+    original_filename: input.originalFilename || null,
+    preview_url: input.previewUrl || null,
+    folder_name: input.folder || "Chưa phân loại",
+    tags: input.tags,
+    skills: input.skills,
+    access_status: input.accessStatus,
+    is_favorite: input.favorite,
     ...(id ? {} : { resource_key: `plan-${planId}-${Date.now().toString(36)}` }),
   };
   const query = id ? client.from("learning_resources").update(payload).eq("id", id) : client.from("learning_resources").insert(payload);
   const { data, error } = await query.select().single();
   throwIfError(error);
   return mapResource(data);
+}
+
+function safeFileName(name: string) {
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
+}
+
+export function parseGoogleDriveUrl(value: string) {
+  const url = value.trim();
+  const match = url.match(/\/(?:file\/d|document\/d|spreadsheets\/d|presentation\/d)\/([a-zA-Z0-9_-]+)/)
+    ?? url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const id = match?.[1] ?? "";
+  const kind = url.includes("docs.google.com/document") ? "document" : url.includes("docs.google.com/spreadsheets") ? "spreadsheets" : url.includes("docs.google.com/presentation") ? "presentation" : "file";
+  const previewUrl = !id ? url : kind === "file"
+    ? `https://drive.google.com/file/d/${id}/preview`
+    : `https://docs.google.com/${kind}/d/${id}/preview`;
+  return { id, previewUrl };
+}
+
+export async function uploadPlanResource(userId: string, planId: string, file: File, input: Omit<ResourceInput, "url" | "provider" | "externalFileId" | "originalFilename" | "previewUrl">) {
+  if (file.size > 50 * 1024 * 1024) throw new Error("Tệp vượt quá giới hạn 50 MB.");
+  const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+  if (!allowed.includes(file.type) && !/\.(pdf|doc|docx|txt)$/i.test(file.name)) throw new Error("Thư viện hiện hỗ trợ PDF, DOC, DOCX và TXT.");
+  const client = getSupabase();
+  const path = `${userId}/${planId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  const upload = await client.storage.from("learning-materials").upload(path, file, { contentType: file.type || undefined });
+  throwIfError(upload.error);
+  const payload = {
+    user_id: userId, plan_id: planId, resource_key: `upload-${crypto.randomUUID()}`,
+    title: input.title || file.name, url: `storage:${path}`, resource_type: input.type,
+    description: input.description, is_primary: input.primary, storage_path: path,
+    mime_type: file.type || null, file_size: file.size, source_provider: "LOCAL_STORAGE",
+    original_filename: file.name, folder_name: input.folder || "Chưa phân loại", tags: input.tags,
+    skills: input.skills, access_status: "READY", is_favorite: input.favorite,
+  };
+  const result = await client.from("learning_resources").insert(payload).select().single();
+  if (result.error) { await client.storage.from("learning-materials").remove([path]); throwIfError(result.error); }
+  return mapResource(result.data);
+}
+
+export async function markResourceOpened(id: string) {
+  const { error } = await getSupabase().from("learning_resources").update({ last_opened_at: new Date().toISOString() }).eq("id", id);
+  throwIfError(error);
 }
 
 export async function deletePlanResource(resource: PlanResource) {
