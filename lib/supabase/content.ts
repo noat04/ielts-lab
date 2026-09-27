@@ -3,7 +3,8 @@ import { getSupabase } from "@/lib/supabase/client";
 export type ArticleStatus = "draft" | "published" | "archived";
 export type ContentArticle = {
   id: string;
-  authorId: string;
+  authorId: string | null;
+  isSystem: boolean;
   title: string;
   slug: string;
   excerpt: string;
@@ -85,7 +86,7 @@ function list(value: unknown) {
 
 function mapArticle(row: Record<string, any>): ContentArticle {
   return {
-    id: row.id, authorId: row.author_id, title: row.title, slug: row.slug, excerpt: row.excerpt,
+    id: row.id, authorId: row.author_id ?? null, isSystem: Boolean(row.is_system), title: row.title, slug: row.slug, excerpt: row.excerpt,
     content: row.content, contentFormat: row.content_format, category: row.category, tags: row.tags ?? [],
     featuredImageUrl: row.featured_image_url ?? "", focusKeyword: row.focus_keyword, seoTitle: row.seo_title,
     seoDescription: row.seo_description, canonicalUrl: row.canonical_url ?? "", schemaType: row.schema_type,
@@ -118,7 +119,7 @@ export async function loadContentWorkspace(): Promise<ContentWorkspace> {
   return { articles: (articles.data ?? []).map(mapArticle), topics: (topics.data ?? []).map(mapTopic), vocabulary: (vocabulary.data ?? []).map(mapVocabulary) };
 }
 
-type ArticleInput = Omit<ContentArticle, "id" | "authorId" | "publishedAt" | "updatedAt" | "readingMinutes">;
+type ArticleInput = Omit<ContentArticle, "id" | "authorId" | "isSystem" | "publishedAt" | "updatedAt" | "readingMinutes">;
 export async function saveArticle(userId: string, input: ArticleInput, id?: string) {
   const client = getSupabase();
   const wordCount = input.content.trim().split(/\s+/).filter(Boolean).length;
