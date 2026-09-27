@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { SprintQualityPanel } from "@/components/SprintQuality";
 import { PracticeFields, type RecordingValue } from "@/components/PracticeFields";
+import { parseSprintFile, SPRINT_IMPORT_TEMPLATE, type SprintImportDraft } from "@/lib/sprint-import";
 import {
   assignSourceToSession,
   completeSprintSession,
@@ -22,6 +23,7 @@ import {
   type SprintWorkspace,
   type StudyTask,
   type TaskAttempt,
+  type WeekSprintInput,
 } from "@/lib/supabase/sprints";
 
 type Modal = { kind: "week" } | { kind: "source" } | { kind: "tasks"; session: SprintSession } | null;
@@ -91,9 +93,73 @@ export function WeeklySprint({ userId }: { userId: string }) {
 
 function SprintModal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal-card ${wide ? "hub-modal-wide" : ""}`}><header><div><small>WEEKLY SPRINT MVP</small><h2>{title}</h2></div><button onClick={onClose}>×</button></header>{children}</div></div>; }
 
-function WeekForm({ saving, defaultTitle, onSave }: { saving: boolean; defaultTitle: string; onSave: (input: { startDate: string; title: string; objective: string; targets: Record<string, number> }) => void }) {
-  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ startDate: String(form.get("startDate")), title: String(form.get("title")).trim(), objective: String(form.get("objective")).trim(), targets: Object.fromEntries(SKILLS.map((skill) => [skill, Number(form.get(`target-${skill}`))])) }); }
-  return <form className="planner-form" onSubmit={submit}><div className="form-grid"><label>Ngày bắt đầu<input name="startDate" type="date" required defaultValue={mondayISO()}/></label><label>Tên Sprint<input name="title" required defaultValue={defaultTitle}/></label><label className="wide">Mục tiêu tuần<textarea name="objective" rows={3} required placeholder="Ví dụ: Tự làm Reading Section 2 khi bấm giờ"/></label>{SKILLS.map((skill) => <label key={skill}>Target {skill}<input name={`target-${skill}`} type="number" min="0" max="100" defaultValue="65"/></label>)}</div><button className="primary submit" disabled={saving}>{saving ? "Đang tạo…" : "Tạo Sprint và Daily Sessions"}</button></form>;
+function WeekForm({ saving, defaultTitle, onSave }: { saving: boolean; defaultTitle: string; onSave: (input: WeekSprintInput) => void }) {
+  const [draft, setDraft] = useState<Omit<SprintImportDraft, "warnings"> & { warnings: string[] }>({
+    title: defaultTitle,
+    startDate: mondayISO(),
+    objective: "",
+    targets: Object.fromEntries(SKILLS.map((skill) => [skill, 65])),
+    sessions: [],
+    warnings: [],
+  });
+  const [fileName, setFileName] = useState("");
+  const [importError, setImportError] = useState("");
+  const [readingFile, setReadingFile] = useState(false);
+
+  async function importFile(file?: File) {
+    if (!file) return;
+    setReadingFile(true); setImportError("");
+    try {
+      const parsed = parseSprintFile(file.name, await file.text());
+      setDraft(parsed);
+      setFileName(file.name);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Không thể đọc file Sprint.");
+      setFileName("");
+    } finally {
+      setReadingFile(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const blob = new Blob([SPRINT_IMPORT_TEMPLATE], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "weekly-sprint-template.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const end = new Date(`${draft.startDate}T12:00:00`);
+    end.setDate(end.getDate() + 6);
+    const endDate = localISO(end);
+    const outside = draft.sessions.find((session) => session.date < draft.startDate || session.date > endDate);
+    if (outside) {
+      setImportError(`Session “${outside.title}” nằm ngoài tuần ${draft.startDate}–${endDate}. Hãy sửa ngày bắt đầu hoặc nhập lại file.`);
+      return;
+    }
+    onSave({ title: draft.title.trim(), startDate: draft.startDate, objective: draft.objective.trim(), targets: draft.targets, sessions: draft.sessions });
+  }
+
+  return <form className="planner-form" onSubmit={submit}>
+    <section className="sprint-file-import">
+      <div><small>QUICK SPRINT IMPORT</small><b>Nhập kế hoạch từ file</b><p>Hỗ trợ `.csv`, `.txt`, `.text`, `.md` · tối đa 1 MB.</p></div>
+      <label className="sprint-file-picker"><input type="file" accept=".csv,.txt,.text,.md,text/csv,text/plain,text/markdown" onChange={(event) => void importFile(event.target.files?.[0])}/><span>{readingFile ? "Đang đọc file…" : "Chọn file"}</span></label>
+      <button type="button" onClick={downloadTemplate}>Tải CSV mẫu</button>
+    </section>
+    {importError && <p className="import-inline-error">{importError}</p>}
+    {fileName && <section className="sprint-import-preview"><header><span><small>ĐÃ ĐỌC FILE</small><b>{fileName}</b></span><strong>{draft.sessions.length} session</strong></header>{draft.sessions.length > 0 && <div>{draft.sessions.slice(0, 5).map((session, index) => <p key={`${session.date}-${index}`}><time>{session.date}{session.studyTime ? ` · ${session.studyTime}` : ""}</time><b>{session.skill} · {session.title}</b><span>{session.duration} phút</span></p>)}{draft.sessions.length > 5 && <em>+ {draft.sessions.length - 5} session khác</em>}</div>}{!draft.sessions.length && <p className="import-fallback">File không có session hợp lệ; hệ thống sẽ tự sinh lịch theo ngày học trong lộ trình.</p>}{draft.warnings.length > 0 && <details><summary>{draft.warnings.length} cảnh báo khi đọc file</summary>{draft.warnings.map((warning) => <p key={warning}>{warning}</p>)}</details>}</section>}
+    <div className="form-grid">
+      <label>Ngày bắt đầu<input name="startDate" type="date" required value={draft.startDate} onChange={(event) => setDraft({ ...draft, startDate: event.target.value })}/></label>
+      <label>Tên Sprint<input name="title" required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })}/></label>
+      <label className="wide">Mục tiêu tuần<textarea name="objective" rows={3} required placeholder="Ví dụ: Tự làm Reading Section 2 khi bấm giờ" value={draft.objective} onChange={(event) => setDraft({ ...draft, objective: event.target.value })}/></label>
+      {SKILLS.map((skill) => <label key={skill}>Target {skill}<input name={`target-${skill}`} type="number" min="0" max="100" value={draft.targets[skill] ?? 65} onChange={(event) => setDraft({ ...draft, targets: { ...draft.targets, [skill]: Number(event.target.value) } })}/></label>)}
+    </div>
+    <button className="primary submit" disabled={saving || readingFile}>{saving ? "Đang tạo…" : draft.sessions.length ? `Tạo Sprint với ${draft.sessions.length} session` : "Tạo Sprint và Daily Sessions"}</button>
+  </form>;
 }
 
 function SourceForm({ saving, materials, onSave }: { saving: boolean; materials: SprintWorkspace["materials"]; onSave: (input: Omit<LearningSourceMapping, "id" | "planId">) => void }) {

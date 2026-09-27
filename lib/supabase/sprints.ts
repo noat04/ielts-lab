@@ -1,5 +1,6 @@
 import { getSupabase } from "@/lib/supabase/client";
 import type { LearningPlan, PlanPhase, PlanResource } from "@/lib/supabase/planner";
+import type { ImportedSprintSession } from "@/lib/sprint-import";
 
 export type SprintStatus = "PLANNED" | "IN_PROGRESS" | "REVIEW" | "COMPLETED";
 export type SessionWorkflowStatus = "TODO" | "LEARNING" | "PRACTICING" | "REVIEWING" | "DONE";
@@ -43,6 +44,14 @@ export type SprintWorkspace = {
   plan: LearningPlan | null; phases: PlanPhase[]; sprints: WeekSprint[]; sprint: WeekSprint | null;
   sessions: SprintSession[]; sources: LearningSourceMapping[]; tasks: StudyTask[];
   attempts: TaskAttempt[]; results: SessionResult[]; materials: PlanResource[];
+};
+
+export type WeekSprintInput = {
+  startDate: string;
+  title: string;
+  objective: string;
+  targets: Record<string, number>;
+  sessions?: ImportedSprintSession[];
 };
 
 function throwIfError(error: { message: string } | null) { if (error) throw new Error(error.message); }
@@ -103,7 +112,7 @@ export async function loadSprintWorkspace(selectedSprintId?: string): Promise<Sp
 function iso(date: Date) { return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 const SKILL_BY_DAY: Record<number, string> = { 1: "Listening", 2: "Reading", 3: "Writing", 4: "Speaking", 5: "Grammar / Vocab", 6: "Review", 0: "Review" };
 
-export async function createWeekSprint(userId: string, plan: LearningPlan, phases: PlanPhase[], input: { startDate: string; title: string; objective: string; targets: Record<string, number> }) {
+export async function createWeekSprint(userId: string, plan: LearningPlan, phases: PlanPhase[], input: WeekSprintInput) {
   const client = getSupabase();
   const latest = await client.from("week_sprints").select("week_number").eq("plan_id", plan.id).order("week_number", { ascending: false }).limit(1).maybeSingle();
   throwIfError(latest.error);
@@ -112,14 +121,18 @@ export async function createWeekSprint(userId: string, plan: LearningPlan, phase
   const sprintInsert = await client.from("week_sprints").insert({ user_id: userId, plan_id: plan.id, week_number: weekNumber, start_date: input.startDate, end_date: iso(end), title: input.title || `Week ${weekNumber}`, objective: input.objective, skill_targets: input.targets, status: "PLANNED" }).select().single();
   throwIfError(sprintInsert.error);
   const sprint = mapSprint(sprintInsert.data);
-  const sessions = [];
-  for (let offset = 0; offset < 7; offset += 1) {
-    const date = new Date(start); date.setDate(start.getDate() + offset);
-    if (!plan.studyDays.includes(date.getDay())) continue;
-    const dateValue = iso(date); const skill = SKILL_BY_DAY[date.getDay()] ?? "Review";
-    const phase = phases.find((item) => dateValue >= item.startDate && dateValue <= item.endDate);
-    sessions.push({ user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: dateValue, title: `${skill} · Week ${weekNumber}`, description: input.objective, objective: `Hoàn thành phiên ${skill} theo mục tiêu tuần.`, skill, duration_minutes: Math.max(15, Math.round(plan.weeklyMinutes / Math.max(1, plan.studyDays.length))), priority: "medium", status: "todo", workflow_status: "TODO", target_score: input.targets[skill] ?? null, generation_source: "automatic", source_key: `sprint-${sprint.id}-${dateValue}` });
-  }
+  const sessions = input.sessions?.length
+    ? input.sessions.map((session, index) => {
+      const phase = phases.find((item) => session.date >= item.startDate && session.date <= item.endDate);
+      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: session.date, study_time: session.studyTime || null, title: session.title, description: session.objective, objective: session.objective || input.objective, skill: session.skill, duration_minutes: session.duration, priority: "medium", status: "todo", workflow_status: "TODO", target_score: session.targetScore ?? input.targets[session.skill] ?? null, generation_source: "manual", source_key: `sprint-import-${sprint.id}-${index}-${session.date}` };
+    })
+    : Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date(start); date.setDate(start.getDate() + offset);
+      if (!plan.studyDays.includes(date.getDay())) return null;
+      const dateValue = iso(date); const skill = SKILL_BY_DAY[date.getDay()] ?? "Review";
+      const phase = phases.find((item) => dateValue >= item.startDate && dateValue <= item.endDate);
+      return { user_id: userId, plan_id: plan.id, phase_id: phase?.id ?? null, week_sprint_id: sprint.id, lesson_date: dateValue, title: `${skill} · Week ${weekNumber}`, description: input.objective, objective: `Hoàn thành phiên ${skill} theo mục tiêu tuần.`, skill, duration_minutes: Math.max(15, Math.round(plan.weeklyMinutes / Math.max(1, plan.studyDays.length))), priority: "medium", status: "todo", workflow_status: "TODO", target_score: input.targets[skill] ?? null, generation_source: "automatic", source_key: `sprint-${sprint.id}-${dateValue}` };
+    }).filter((session): session is NonNullable<typeof session> => session !== null);
   if (sessions.length) {
     const inserted = await client.from("daily_lessons").insert(sessions);
     if (inserted.error) {

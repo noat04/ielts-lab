@@ -127,6 +127,8 @@ PLANNED → IN_PROGRESS → REVIEW → COMPLETED
 
 Sprint lưu tuần số, ngày bắt đầu/kết thúc, mục tiêu, target từng kỹ năng, Daily Session, điểm trung bình, thời gian học, lỗi mới, KPI và Weekly Retrospective.
 
+Form tạo Sprint hỗ trợ nhập nhanh file `.csv`, `.txt`, `.text` hoặc `.md`. File có thể chứa thông tin tuần, target từng kỹ năng và danh sách session gồm ngày, giờ, kỹ năng, tiêu đề, thời lượng, target score và mục tiêu bài học. Giao diện hiển thị preview và cảnh báo trước khi tạo; nếu file không có session, hệ thống dùng lịch học cá nhân để tự sinh session.
+
 ### 8. Source Mapping
 
 Mỗi session có thể được map với tài liệu trong thư viện, unit, section, khoảng trang, audio track, script page, phạm vi bài tập, URL và ghi chú. File riêng tư dùng signed URL mới khi tải thay vì lưu URL tạm vào database.
