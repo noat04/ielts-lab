@@ -129,6 +129,8 @@ Sprint lưu tuần số, ngày bắt đầu/kết thúc, mục tiêu, target t�
 
 Form tạo Sprint hỗ trợ nhập nhanh file `.csv`, `.txt`, `.text` hoặc `.md`. File có thể chứa thông tin tuần, target từng kỹ năng và danh sách session gồm ngày, giờ, kỹ năng, tiêu đề, thời lượng, target score và mục tiêu bài học. Giao diện hiển thị preview và cảnh báo trước khi tạo; nếu file không có session, hệ thống dùng lịch học cá nhân để tự sinh session.
 
+Nút **Quản lý skill** cho phép tạo, xem, sửa và lưu trữ skill/hoạt động cá nhân. Mỗi mục có thể ánh xạ về một kỹ năng IELTS cốt lõi để tính KPI hoặc được đánh dấu không tính KPI. `Deep Study` và `Review & Evaluation` có sẵn dưới dạng hoạt động hệ thống. Khi import gặp tên hoạt động mới, hệ thống tự tạo mục cá nhân và mặc định không tính KPI cho đến khi người dùng cấu hình lại.
+
 ### 8. Source Mapping
 
 Mỗi session có thể được map với tài liệu trong thư viện, unit, section, khoảng trang, audio track, script page, phạm vi bài tập, URL và ghi chú. File riêng tư dùng signed URL mới khi tải thay vì lưu URL tạm vào database.
@@ -476,6 +478,7 @@ Trong Supabase Cron, tạo job POST tới `https://YOUR_PROJECT_REF.supabase.co/
 | `20260927109000_complete_product_workflows.sql` | Import Sprint nguyên tử, task/source tự động và xóa Sprint |
 | `20260927110000_add_background_reminder_delivery.sql` | Web Push, email delivery, lịch sử gửi và RLS |
 | `20260927111000_add_session_planning_notes.sql` | Ghi chú chuẩn bị riêng cho từng Daily Session |
+| `20260927112000_add_custom_skill_catalog.sql` | CRUD skill/hoạt động, ánh xạ KPI và tự nhận skill khi import |
 
 Không chỉnh sửa migration đã chạy trên production. Hãy tạo migration mới cho thay đổi tiếp theo.
 

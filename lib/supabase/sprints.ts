@@ -17,10 +17,16 @@ export type LearningSourceMapping = {
   exerciseFrom: string; exerciseTo: string; sourceUrl: string; notes: string;
 };
 
+export type StudySkillCatalog = {
+  id: string; userId: string; name: string; slug: string; kind: "CORE" | "CUSTOM" | "ACTIVITY";
+  parentSkill: string; countsTowardKpi: boolean; color: string; icon: string; isActive: boolean; isSystem: boolean;
+};
+
 export type SprintSession = {
   id: string; planId: string; weekSprintId: string; sourceMappingId: string; date: string;
   skill: string; title: string; objective: string; duration: number; targetScore: number | null;
   actualScore: number | null; workflowStatus: SessionWorkflowStatus; startedAt: string; planningNotes: string;
+  skillCatalogId: string; skillLabel: string;
 };
 
 export type StudyTask = {
@@ -43,7 +49,7 @@ export type SessionResult = {
 export type SprintWorkspace = {
   plan: LearningPlan | null; phases: PlanPhase[]; sprints: WeekSprint[]; sprint: WeekSprint | null;
   sessions: SprintSession[]; sources: LearningSourceMapping[]; tasks: StudyTask[];
-  attempts: TaskAttempt[]; results: SessionResult[]; materials: PlanResource[];
+  attempts: TaskAttempt[]; results: SessionResult[]; materials: PlanResource[]; skillCatalog: StudySkillCatalog[];
 };
 
 export type WeekSprintInput = {
@@ -62,8 +68,9 @@ function mapPlan(row: Record<string, any>): LearningPlan { return { id: row.id, 
 function mapPhase(row: Record<string, any>): PlanPhase { return { id: row.id, planId: row.plan_id, title: row.title, description: row.description, startDate: row.start_date, endDate: row.end_date, position: row.position, status: row.status }; }
 function mapSprint(row: Record<string, any>): WeekSprint { return { id: row.id, planId: row.plan_id, weekNumber: row.week_number, startDate: row.start_date, endDate: row.end_date, title: row.title, objective: row.objective, skillTargets: row.skill_targets ?? {}, status: row.status }; }
 function mapSource(row: Record<string, any>): LearningSourceMapping { return { id: row.id, planId: row.plan_id, resourceId: row.resource_id || "", documentTitle: row.document_title, unit: row.unit, section: row.section, pageFrom: row.page_from, pageTo: row.page_to, audioTrack: row.audio_track, scriptPage: row.script_page, exerciseFrom: row.exercise_from, exerciseTo: row.exercise_to, sourceUrl: row.source_url || "", notes: row.notes }; }
+function mapSkillCatalog(row: Record<string, any>): StudySkillCatalog { return { id: row.id, userId: row.user_id || "", name: row.name, slug: row.slug, kind: row.kind, parentSkill: row.parent_skill || "", countsTowardKpi: Boolean(row.counts_toward_kpi), color: row.color, icon: row.icon, isActive: Boolean(row.is_active), isSystem: !row.user_id }; }
 function mapMaterial(row: Record<string, any>): PlanResource { return { id: row.id, planId: row.plan_id, key: row.resource_key, title: row.title, url: row.url, type: row.resource_type, description: row.description, primary: row.is_primary, storagePath: row.storage_path || "", mimeType: row.mime_type || "", fileSize: row.file_size ?? null, provider: row.source_provider ?? (row.storage_path ? "LOCAL_STORAGE" : "EXTERNAL_LINK"), externalFileId: row.external_file_id || "", originalFilename: row.original_filename || "", previewUrl: row.preview_url || "", folder: row.folder_name || "Chưa phân loại", tags: row.tags ?? [], skills: row.skills ?? [], accessStatus: row.access_status ?? "READY", favorite: Boolean(row.is_favorite), lastOpenedAt: row.last_opened_at || "", createdAt: row.created_at }; }
-function mapSession(row: Record<string, any>): SprintSession { return { id: row.id, planId: row.plan_id, weekSprintId: row.week_sprint_id || "", sourceMappingId: row.source_mapping_id || "", date: row.lesson_date, skill: row.skill, title: row.title, objective: row.objective, duration: row.duration_minutes, targetScore: row.target_score === null ? null : Number(row.target_score), actualScore: row.actual_score === null ? null : Number(row.actual_score), workflowStatus: row.workflow_status, startedAt: row.started_at || "", planningNotes: row.planning_notes || "" }; }
+function mapSession(row: Record<string, any>): SprintSession { return { id: row.id, planId: row.plan_id, weekSprintId: row.week_sprint_id || "", sourceMappingId: row.source_mapping_id || "", date: row.lesson_date, skill: row.skill, skillCatalogId: row.skill_catalog_id || "", skillLabel: row.skill, title: row.title, objective: row.objective, duration: row.duration_minutes, targetScore: row.target_score === null ? null : Number(row.target_score), actualScore: row.actual_score === null ? null : Number(row.actual_score), workflowStatus: row.workflow_status, startedAt: row.started_at || "", planningNotes: row.planning_notes || "" }; }
 function mapTask(row: Record<string, any>): StudyTask { return { id: row.id, lessonId: row.lesson_id, position: row.position, taskType: row.task_type, title: row.title, instructions: row.instructions, question: row.question, answerType: row.answer_type, correctAnswer: row.correct_answer, points: Number(row.points), metadata: row.metadata ?? {}, workflowType: row.workflow_type ?? "STANDARD", workflowConfig: row.workflow_config ?? {} }; }
 function mapAttempt(row: Record<string, any>): TaskAttempt { return { id: row.id, taskId: row.task_id, attemptNumber: row.attempt_number, userAnswer: row.user_answer, isCorrect: row.is_correct, score: Number(row.score), feedback: row.feedback, evidence: row.evidence, submittedAt: row.submitted_at, structuredResponse: row.structured_response ?? {}, audioPath: row.audio_path || "", audioDuration: row.audio_duration_seconds }; }
 function mapResult(row: Record<string, any>): SessionResult { return { id: row.id, lessonId: row.lesson_id, duration: row.duration_minutes, total: row.total_questions, correct: row.correct_answers, wrong: row.wrong_answers, score: row.score_percent === null ? null : Number(row.score_percent), newBugs: row.new_bugs, notes: row.notes, completedAt: row.completed_at }; }
@@ -74,28 +81,30 @@ export async function loadSprintWorkspace(selectedSprintId?: string): Promise<Sp
   throwIfError(plansResult.error);
   const planRows = plansResult.data ?? [];
   const planRow = planRows.find((row) => row.status === "active") ?? planRows[0];
-  if (!planRow) return { plan: null, phases: [], sprints: [], sprint: null, sessions: [], sources: [], tasks: [], attempts: [], results: [], materials: [] };
+  if (!planRow) return { plan: null, phases: [], sprints: [], sprint: null, sessions: [], sources: [], tasks: [], attempts: [], results: [], materials: [], skillCatalog: [] };
   const plan = mapPlan(planRow);
-  const [phasesResult, sprintsResult, sourcesResult, materialsResult] = await Promise.all([
+  const [phasesResult, sprintsResult, sourcesResult, materialsResult, skillCatalogResult] = await Promise.all([
     client.from("plan_phases").select("*").eq("plan_id", plan.id).order("position"),
     client.from("week_sprints").select("*").eq("plan_id", plan.id).order("start_date", { ascending: false }),
     client.from("learning_source_mappings").select("*").eq("plan_id", plan.id).order("document_title"),
     client.from("learning_resources").select("*").eq("plan_id", plan.id).neq("access_status", "ARCHIVED").order("title"),
+    client.from("study_skill_catalog").select("*").order("kind").order("name"),
   ]);
-  [phasesResult, sprintsResult, sourcesResult, materialsResult].forEach((result) => throwIfError(result.error));
+  [phasesResult, sprintsResult, sourcesResult, materialsResult, skillCatalogResult].forEach((result) => throwIfError(result.error));
   const materials = await Promise.all((materialsResult.data ?? []).map(async (row) => { const material = mapMaterial(row); if (!material.storagePath) return material; const signed = await client.storage.from("learning-materials").createSignedUrl(material.storagePath, 3600); return { ...material, url: signed.data?.signedUrl || "", previewUrl: signed.data?.signedUrl || "" }; }));
   const sources = (sourcesResult.data ?? []).map(mapSource).map((source) => { const material = materials.find((item) => item.id === source.resourceId); return material ? { ...source, documentTitle: source.documentTitle || material.title, sourceUrl: source.sourceUrl || material.previewUrl || material.url } : source; });
   const sprints = (sprintsResult.data ?? []).map(mapSprint);
+  const skillCatalog = (skillCatalogResult.data ?? []).map(mapSkillCatalog);
   const today = new Date().toISOString().slice(0, 10);
   const sprint = sprints.find((item) => item.id === selectedSprintId)
     ?? sprints.find((item) => today >= item.startDate && today <= item.endDate)
     ?? sprints.find((item) => item.status !== "COMPLETED") ?? sprints[0] ?? null;
-  if (!sprint) return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint: null, sessions: [], sources, tasks: [], attempts: [], results: [], materials };
+  if (!sprint) return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint: null, sessions: [], sources, tasks: [], attempts: [], results: [], materials, skillCatalog };
   const sessionsResult = await client.from("daily_lessons").select("*").eq("week_sprint_id", sprint.id).order("lesson_date");
   throwIfError(sessionsResult.error);
-  const sessions = (sessionsResult.data ?? []).map(mapSession);
+  const sessions = (sessionsResult.data ?? []).map(mapSession).map((session) => ({ ...session, skillLabel: skillCatalog.find((item) => item.id === session.skillCatalogId)?.name ?? session.skill }));
   const lessonIds = sessions.map((item) => item.id);
-  if (!lessonIds.length) return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint, sessions, sources, tasks: [], attempts: [], results: [], materials };
+  if (!lessonIds.length) return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint, sessions, sources, tasks: [], attempts: [], results: [], materials, skillCatalog };
   const [tasksResult, resultsResult] = await Promise.all([
     client.from("study_tasks").select("*").in("lesson_id", lessonIds).order("position"),
     client.from("session_results").select("*").in("lesson_id", lessonIds),
@@ -109,7 +118,7 @@ export async function loadSprintWorkspace(selectedSprintId?: string): Promise<Sp
     throwIfError(attemptsResult.error);
     attempts = (attemptsResult.data ?? []).map(mapAttempt);
   }
-  return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint, sessions, sources, tasks, attempts, results: (resultsResult.data ?? []).map(mapResult), materials };
+  return { plan, phases: (phasesResult.data ?? []).map(mapPhase), sprints, sprint, sessions, sources, tasks, attempts, results: (resultsResult.data ?? []).map(mapResult), materials, skillCatalog };
 }
 
 function iso(date: Date) { return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
@@ -197,6 +206,36 @@ export async function assignSourceToSession(sessionId: string, sourceId: string)
 
 export async function updateSessionPlanningNotes(sessionId: string, planningNotes: string) {
   const { error } = await getSupabase().from("daily_lessons").update({ planning_notes: planningNotes.trim() }).eq("id", sessionId);
+  throwIfError(error);
+}
+
+export type StudySkillCatalogInput = Pick<StudySkillCatalog, "name" | "kind" | "parentSkill" | "countsTowardKpi" | "color" | "icon" | "isActive">;
+
+function skillSlug(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+export async function saveStudySkillCatalog(userId: string, input: StudySkillCatalogInput, id?: string) {
+  const client = getSupabase();
+  const payload = { user_id: userId, name: input.name.trim(), slug: skillSlug(input.name), kind: input.kind === "CORE" ? "CUSTOM" : input.kind, parent_skill: input.parentSkill || null, counts_toward_kpi: input.countsTowardKpi, color: input.color, icon: input.icon.trim() || "◎", is_active: input.isActive };
+  if (!payload.slug) throw new Error("Tên skill cần có ít nhất một ký tự chữ hoặc số Latin.");
+  const query = id ? client.from("study_skill_catalog").update(payload).eq("id", id) : client.from("study_skill_catalog").insert(payload);
+  const result = await query.select().single();
+  throwIfError(result.error);
+  if (id) {
+    const lessons = await client.from("daily_lessons").update({ skill_catalog_id: id }).eq("skill_catalog_id", id);
+    throwIfError(lessons.error);
+  }
+  return mapSkillCatalog(result.data);
+}
+
+export async function setStudySkillCatalogActive(id: string, isActive: boolean) {
+  const { error } = await getSupabase().from("study_skill_catalog").update({ is_active: isActive }).eq("id", id);
+  throwIfError(error);
+}
+
+export async function updateSessionSkill(sessionId: string, skillCatalogId: string) {
+  const { error } = await getSupabase().from("daily_lessons").update({ skill_catalog_id: skillCatalogId }).eq("id", sessionId);
   throwIfError(error);
 }
 

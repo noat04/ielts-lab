@@ -22,3 +22,11 @@ start_date: 2026-09-28
   assert.equal(draft.sessions.length, 0);
   assert.equal(draft.warnings.length, 1);
 });
+
+test("import preserves custom activity names for database catalog resolution", () => {
+  const csv = `sprint_title,start_date,date,skill,session_title,duration
+Custom week,2026-09-28,2026-09-28,Deep Study,Focused practice,60
+Custom week,2026-09-28,2026-09-29,Review & Evaluation,Weekly review,30`;
+  const draft = parseSprintFile("custom.csv", csv);
+  assert.deepEqual(draft.sessions.map((session) => session.skill), ["Deep Study", "Review & Evaluation"]);
+});

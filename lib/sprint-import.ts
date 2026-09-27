@@ -50,6 +50,7 @@ function validDate(value: string) {
 }
 
 function mapSkill(value: string) {
+  const original = value.trim();
   const key = normalize(value);
   const aliases: Record<string, string> = {
     listening: "Listening", nghe: "Listening",
@@ -60,7 +61,7 @@ function mapSkill(value: string) {
     mock: "Mock Test", mock_test: "Mock Test", thi_thu: "Mock Test",
     review: "Review", on_tap: "Review",
   };
-  return aliases[key] ?? SPRINT_IMPORT_SKILLS.find((skill) => normalize(skill) === key) ?? "";
+  return aliases[key] ?? SPRINT_IMPORT_SKILLS.find((skill) => normalize(skill) === key) ?? (original.length <= 80 ? original : "");
 }
 
 function parseNumber(value: string, fallback: number) {
