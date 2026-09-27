@@ -223,6 +223,18 @@ Cuối tuần, người học lưu năng lượng, tự tin, wins, challenges, S
 
 Generator tìm session chưa `DONE`, sao chép session/task/Source Mapping sang Sprint mới, đánh dấu ưu tiên cao, lấp các ngày trống, sử dụng trọng tâm retrospective, hoàn tất Sprint cũ và lưu quan hệ carry-over.
 
+### 22.1. Weekly Review Wizard
+
+Wizard hợp nhất quy trình cuối tuần thành 5 bước trong một màn hình:
+
+1. Tổng kết KPI, thời gian, độ chính xác và session chưa hoàn thành.
+2. So sánh hiệu suất theo kỹ năng và xác định kỹ năng yếu nhất.
+3. Ưu tiên lỗi theo severity, số lần tái diễn và lịch retest.
+4. Ghi năng lượng, mức tự tin, wins, challenges và Stop/Start/Continue.
+5. Xem trước, chỉnh mục tiêu và xác nhận kế hoạch tuần kế tiếp.
+
+Khi xác nhận, hệ thống lưu retrospective, carry-over session/task/tài liệu, tạo tuần mới và lên lịch retest cho tối đa ba lỗi ưu tiên. Mọi thay đổi chỉ được ghi sau bước xác nhận cuối cùng.
+
 ### 23. Mock Test
 
 - Nhập raw score Listening và Reading.
@@ -298,6 +310,7 @@ components/
   LearningTools.tsx           Diagnostic, schedule, mock test, AI
   WeeklySprint.tsx            Sprint và Session Runner
   SprintQuality.tsx           KPI, retest, retrospective, next week
+  WeeklyReviewWizard.tsx      Đánh giá tuần và duyệt kế hoạch tuần sau
   PracticeFields.tsx          Workflow theo kỹ năng và ghi âm
   PersonalResourceLibrary.tsx Kho tài liệu cá nhân
   ContentHub.tsx              Bài viết SEO và từ vựng

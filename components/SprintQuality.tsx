@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { WeeklyReviewWizard } from "@/components/WeeklyReviewWizard";
 import {
   generateNextWeek,
   loadSprintQuality,
@@ -48,6 +49,7 @@ export function SprintQualityPanel({
   const [retestBug, setRetestBug] = useState<QualityBug | null>(null);
   const [showRetro, setShowRetro] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [showReviewWizard, setShowReviewWizard] = useState(false);
 
   const reload = useCallback(async () => {
     setError("");
@@ -76,6 +78,8 @@ export function SprintQualityPanel({
       <button disabled={busy} onClick={() => void reload()}>↻ Tính lại KPI</button>
     </div>
     {error && <div className="status-banner"><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
+
+    <div className="review-launcher"><div><span>WEEKLY REVIEW</span><h3>Sẵn sàng tổng kết và lên kế hoạch tuần sau?</h3><p>Đi qua 5 bước: KPI, kỹ năng, lỗi, tự đánh giá và duyệt kế hoạch mới.</p></div><button className="primary" disabled={!quality || busy} onClick={() => setShowReviewWizard(true)}>Bắt đầu Weekly Review →</button></div>
 
     <div className="quality-kpis">
       <KpiCard label="Overall quality" value={percent(kpi?.overall ?? null)} detail={kpi ? `Cập nhật ${new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(kpi.calculatedAt))}` : "Chưa có dữ liệu"}/>
@@ -131,6 +135,7 @@ export function SprintQualityPanel({
       catch (cause) { setError(cause instanceof Error ? cause.message : "Không thể tạo tuần kế tiếp."); }
       finally { setBusy(false); }
     }}/></QualityModal>}
+    {showReviewWizard && quality && <WeeklyReviewWizard userId={userId} sprint={sprint} sessions={sessions} quality={quality} onClose={() => setShowReviewWizard(false)} onSprintGenerated={onSprintGenerated}/>}
   </section>;
 }
 
