@@ -6,16 +6,18 @@ import type { StudyTask } from "@/lib/supabase/sprints";
 
 export type RecordingValue = { blob: Blob; durationSeconds: number } | null;
 
-export function PracticeFields({ task, answer, evidence, selfCorrect, structured, recording, onAnswer, onEvidence, onSelfCorrect, onStructured, onRecording, onSubmit, submitDisabled = false }: {
+export function PracticeFields({ task, answer, evidence, selfCorrect, manualGrade, structured, recording, onAnswer, onEvidence, onSelfCorrect, onManualGrade, onStructured, onRecording, onSubmit, submitDisabled = false }: {
   task: StudyTask;
   answer: string;
   evidence: string;
   selfCorrect: boolean;
+  manualGrade: "correct" | "wrong" | "";
   structured: Record<string, string>;
   recording: RecordingValue;
   onAnswer: (value: string) => void;
   onEvidence: (value: string) => void;
   onSelfCorrect: (value: boolean) => void;
+  onManualGrade: (value: "correct" | "wrong") => void;
   onStructured: (value: Record<string, string>) => void;
   onRecording: (value: RecordingValue) => void;
   onSubmit?: () => void;
@@ -34,6 +36,7 @@ export function PracticeFields({ task, answer, evidence, selfCorrect, structured
         : task.workflowType === "SPEAKING_CUE_CARD"
           ? { placeholder: "Ví dụ: 00:35 · ngập ngừng sau ‘because’; cần sửa thì quá khứ", templates: ["Mốc __:__ · vấn đề: __", "Câu cần nghe lại: __"] }
           : { placeholder: "Ghi trang, đoạn, dòng, timestamp hoặc câu chứa bằng chứng…", templates: ["Trang __ · dòng __", "Vị trí: __"] };
+  const requiresManualGrade = task.answerType !== "self_check" && !task.correctAnswer.trim();
 
   function appendEvidence(template: string) {
     onEvidence(evidence.trim() ? `${evidence.trim()}\n${template}` : template);
@@ -59,6 +62,7 @@ export function PracticeFields({ task, answer, evidence, selfCorrect, structured
         : <MarkdownResponseField className="answer-field" title="Câu trả lời của bạn" description={task.answerType === "long_text" ? "Hỗ trợ Markdown để trình bày bài làm hoàn chỉnh" : "Có thể nhập nhiều đáp án, mỗi đáp án một dòng"} rows={task.answerType === "long_text" ? 10 : 4} value={answer} onChange={onAnswer} placeholder={task.workflowType === "WRITING_AREA" ? "Viết đoạn hoặc bài làm tại đây…" : "Ví dụ:\nQ11. guided walk\nQ12. 15 pounds"} autoFocusKey={task.id}/>}
       <MarkdownResponseField className="evidence-field" title="Evidence / vị trí tìm thấy đáp án" description="Không cần chép cả đoạn, chỉ ghi đủ để tìm lại nhanh" rows={task.answerType === "long_text" ? 10 : 4} value={evidence} onChange={onEvidence} placeholder={evidenceGuide.placeholder} footer={<span className="evidence-templates">{evidenceGuide.templates.map((template) => <button type="button" key={template} onClick={() => appendEvidence(template)}>＋ {template}</button>)}</span>}/>
     </div>
+    {requiresManualGrade && <section className="manual-grade"><div><b>Task chưa có đáp án mẫu</b><small>Đối chiếu với tài liệu và Evidence, sau đó tự đánh giá trước khi nộp.</small></div><span><button type="button" className={manualGrade === "wrong" ? "wrong active" : "wrong"} onClick={() => onManualGrade("wrong")}>Cần làm lại</button><button type="button" className={manualGrade === "correct" ? "correct active" : "correct"} onClick={() => onManualGrade("correct")}>Đạt yêu cầu</button></span></section>}
     <p className="submit-shortcut">Mẹo: nhấn <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> để nộp bài.</p>
   </div>;
 }

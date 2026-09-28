@@ -271,8 +271,10 @@ function normalizeAnswer(value: string) {
 }
 export async function submitTaskAttempt(userId: string, task: StudyTask, answer: string, selfCorrect?: boolean, evidence = "", structuredResponse: Record<string, string> = {}) {
   const client = getSupabase(); const latest = await client.from("task_attempts").select("attempt_number").eq("task_id", task.id).order("attempt_number", { ascending: false }).limit(1).maybeSingle(); throwIfError(latest.error);
-  const isCorrect = task.answerType === "self_check" ? Boolean(selfCorrect) : normalizeAnswer(answer) === normalizeAnswer(task.correctAnswer);
-  const { data, error } = await client.from("task_attempts").insert({ user_id: userId, task_id: task.id, attempt_number: (latest.data?.attempt_number ?? 0) + 1, user_answer: answer, is_correct: isCorrect, score: isCorrect ? task.points : 0, feedback: isCorrect ? "Đáp án đúng." : "Cần phân tích lỗi và thử lại.", evidence, structured_response: structuredResponse }).select().single();
+  const manualReview = task.answerType === "self_check" || !task.correctAnswer.trim();
+  const isCorrect = manualReview ? Boolean(selfCorrect) : normalizeAnswer(answer) === normalizeAnswer(task.correctAnswer);
+  const feedback = manualReview ? isCorrect ? "Tự đánh giá: đạt yêu cầu." : "Tự đánh giá: cần làm lại." : isCorrect ? "Đáp án đúng." : "Cần phân tích lỗi và thử lại.";
+  const { data, error } = await client.from("task_attempts").insert({ user_id: userId, task_id: task.id, attempt_number: (latest.data?.attempt_number ?? 0) + 1, user_answer: answer, is_correct: isCorrect, score: isCorrect ? task.points : 0, feedback, evidence, structured_response: structuredResponse }).select().single();
   throwIfError(error); return mapAttempt(data);
 }
 
