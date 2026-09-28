@@ -1,4 +1,4 @@
-export type InlineToken = { type: "text" | "strong" | "link"; text: string; href?: string };
+export type InlineToken = { type: "text" | "strong" | "emphasis" | "code" | "link"; text: string; href?: string };
 
 export function isSafeContentUrl(value: string) {
   return /^(https?:|mailto:|\/|#)/i.test(value.trim());
@@ -6,13 +6,15 @@ export function isSafeContentUrl(value: string) {
 
 export function parseInlineMarkdown(value: string): InlineToken[] {
   const tokens: InlineToken[] = [];
-  const pattern = /\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
+  const pattern = /\*\*([^*]+)\*\*|\*([^*\n]+)\*|`([^`\n]+)`|\[([^\]]+)\]\(([^)]+)\)/g;
   let cursor = 0;
   for (const match of value.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > cursor) tokens.push({ type: "text", text: value.slice(cursor, index) });
     if (match[1]) tokens.push({ type: "strong", text: match[1] });
-    else if (isSafeContentUrl(match[3])) tokens.push({ type: "link", text: match[2], href: match[3].trim() });
+    else if (match[2]) tokens.push({ type: "emphasis", text: match[2] });
+    else if (match[3]) tokens.push({ type: "code", text: match[3] });
+    else if (isSafeContentUrl(match[5])) tokens.push({ type: "link", text: match[4], href: match[5].trim() });
     else tokens.push({ type: "text", text: match[0] });
     cursor = index + match[0].length;
   }

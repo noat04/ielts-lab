@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { MarkdownPreview } from "@/components/MarkdownPreview";
 import type { StudyTask } from "@/lib/supabase/sprints";
 
 export type RecordingValue = { blob: Blob; durationSeconds: number } | null;
@@ -20,12 +21,9 @@ export function PracticeFields({ task, answer, evidence, selfCorrect, structured
   onSubmit?: () => void;
   submitDisabled?: boolean;
 }) {
-  const answerField = useRef<HTMLTextAreaElement | null>(null);
   const set = (key: string, value: string) => onStructured({ ...structured, [key]: value });
   const field = (label: string, key: string, placeholder = "") => <label>{label}<input value={structured[key] ?? ""} onChange={(event) => set(key, event.target.value)} placeholder={placeholder}/></label>;
   const area = (label: string, key: string, placeholder = "") => <label className="wide">{label}<textarea rows={3} value={structured[key] ?? ""} onChange={(event) => set(key, event.target.value)} placeholder={placeholder}/></label>;
-
-  useEffect(() => { answerField.current?.focus(); }, [task.id]);
 
   const evidenceGuide = task.workflowType === "LISTENING_PREDICTION"
     ? { placeholder: "Ví dụ: Track 23 · 01:42 · speaker nói ‘guided walk’ sau anchor ‘afternoon’", templates: ["Track __ · __:__", "Anchor: __ → nghe thấy: __"] }
@@ -56,11 +54,57 @@ export function PracticeFields({ task, answer, evidence, selfCorrect, structured
     {task.workflowType === "SPEAKING_CUE_CARD" && <><div className="workflow-tip"><b>CUE CARD → 1-MINUTE NOTES → SENTENCE LIBRARY → RECORD → RETRY</b><span>Ghi ý ngắn, nói thành tiếng rồi tự phân tích.</span></div><div className="form-grid">{area("1-minute notes", "notes", "watch · grandfather · 20 years · family memory")}{area("Sentence library / chunks", "sentenceLibrary", "I think… / The main reason is… / For example…")}{area("Vấn đề sau khi nghe lại", "problems", "pauses, tense, incomplete sentences…")}</div><SpeakingRecorder value={recording} onChange={onRecording}/></>}
 
     <div className="response-workspace">
-      <label className="answer-field"><span><b>Câu trả lời của bạn</b><small>{task.answerType === "long_text" ? "Viết nội dung hoàn chỉnh" : "Có thể nhập nhiều đáp án, mỗi đáp án một dòng"}</small></span>{task.answerType === "self_check" ? <span className="self-check"><input type="checkbox" checked={selfCorrect} onChange={(event) => onSelfCorrect(event.target.checked)}/> Tôi đã hoàn thành đúng yêu cầu và tự kiểm tra</span> : <textarea ref={answerField} rows={task.answerType === "long_text" ? 10 : 4} value={answer} onChange={(event) => onAnswer(event.target.value)} placeholder={task.workflowType === "WRITING_AREA" ? "Viết đoạn hoặc bài làm tại đây…" : "Ví dụ:\nQ11. guided walk\nQ12. 15 pounds"}/>}</label>
-      <label className="evidence-field"><span><b>Evidence / vị trí tìm thấy đáp án</b><small>Không cần chép cả đoạn, chỉ ghi đủ để tìm lại nhanh</small></span><textarea rows={task.answerType === "long_text" ? 10 : 4} value={evidence} onChange={(event) => onEvidence(event.target.value)} placeholder={evidenceGuide.placeholder}/><span className="evidence-templates">{evidenceGuide.templates.map((template) => <button type="button" key={template} onClick={() => appendEvidence(template)}>＋ {template}</button>)}</span></label>
+      {task.answerType === "self_check"
+        ? <section className="answer-field"><span><b>Câu trả lời của bạn</b><small>Xác nhận sau khi hoàn thành và tự kiểm tra</small></span><span className="self-check"><input type="checkbox" checked={selfCorrect} onChange={(event) => onSelfCorrect(event.target.checked)}/> Tôi đã hoàn thành đúng yêu cầu và tự kiểm tra</span></section>
+        : <MarkdownResponseField className="answer-field" title="Câu trả lời của bạn" description={task.answerType === "long_text" ? "Hỗ trợ Markdown để trình bày bài làm hoàn chỉnh" : "Có thể nhập nhiều đáp án, mỗi đáp án một dòng"} rows={task.answerType === "long_text" ? 10 : 4} value={answer} onChange={onAnswer} placeholder={task.workflowType === "WRITING_AREA" ? "Viết đoạn hoặc bài làm tại đây…" : "Ví dụ:\nQ11. guided walk\nQ12. 15 pounds"} autoFocusKey={task.id}/>}
+      <MarkdownResponseField className="evidence-field" title="Evidence / vị trí tìm thấy đáp án" description="Không cần chép cả đoạn, chỉ ghi đủ để tìm lại nhanh" rows={task.answerType === "long_text" ? 10 : 4} value={evidence} onChange={onEvidence} placeholder={evidenceGuide.placeholder} footer={<span className="evidence-templates">{evidenceGuide.templates.map((template) => <button type="button" key={template} onClick={() => appendEvidence(template)}>＋ {template}</button>)}</span>}/>
     </div>
     <p className="submit-shortcut">Mẹo: nhấn <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> để nộp bài.</p>
   </div>;
+}
+
+function MarkdownResponseField({ className, title, description, rows, value, placeholder, autoFocusKey, footer, onChange }: { className: string; title: string; description: string; rows: number; value: string; placeholder: string; autoFocusKey?: string; footer?: ReactNode; onChange: (value: string) => void }) {
+  const textarea = useRef<HTMLTextAreaElement | null>(null);
+  const [preview, setPreview] = useState(false);
+
+  useEffect(() => { if (autoFocusKey && !preview) textarea.current?.focus(); }, [autoFocusKey, preview]);
+
+  function replaceSelection(before: string, after: string, fallback: string) {
+    const element = textarea.current;
+    if (!element) return onChange(`${value}${value ? "\n" : ""}${before}${fallback}${after}`);
+    const start = element.selectionStart; const end = element.selectionEnd;
+    const selected = value.slice(start, end) || fallback;
+    const next = `${value.slice(0, start)}${before}${selected}${after}${value.slice(end)}`;
+    onChange(next);
+    requestAnimationFrame(() => { element.focus(); element.setSelectionRange(start + before.length, start + before.length + selected.length); });
+  }
+
+  function prefixLines(prefix: string, fallback: string) {
+    const element = textarea.current;
+    if (!element) return onChange(`${value}${value ? "\n" : ""}${prefix}${fallback}`);
+    const start = element.selectionStart; const end = element.selectionEnd;
+    const selected = value.slice(start, end) || fallback;
+    const replacement = selected.split("\n").map((line) => `${prefix}${line}`).join("\n");
+    onChange(`${value.slice(0, start)}${replacement}${value.slice(end)}`);
+    requestAnimationFrame(() => { element.focus(); element.setSelectionRange(start, start + replacement.length); });
+  }
+
+  return <section className={className}>
+    <span><b>{title}</b><small>{description}</small></span>
+    <div className="response-editor-toolbar" aria-label={`Định dạng ${title}`}>
+      <button type="button" title="In đậm" onClick={() => replaceSelection("**", "**", "nội dung")}>B</button>
+      <button type="button" title="In nghiêng" onClick={() => replaceSelection("*", "*", "nội dung")}>I</button>
+      <button type="button" title="Danh sách" onClick={() => prefixLines("- ", "Ý chính")}>Danh sách</button>
+      <button type="button" title="Trích dẫn" onClick={() => prefixLines("> ", "Bằng chứng")}>Trích dẫn</button>
+      <button type="button" title="Mã hoặc từ khóa" onClick={() => replaceSelection("`", "`", "từ khóa")}>Code</button>
+      <button type="button" title="Liên kết" onClick={() => replaceSelection("[", "](https://example.com)", "tên liên kết")}>Liên kết</button>
+      <button type="button" className={preview ? "active" : ""} onClick={() => setPreview((current) => !current)}>{preview ? "Soạn thảo" : "Xem trước"}</button>
+    </div>
+    {preview
+      ? <MarkdownPreview content={value || "*Chưa có nội dung để xem trước.*"} compact/>
+      : <textarea ref={textarea} rows={rows} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder}/>}
+    {footer}
+  </section>;
 }
 
 function SpeakingRecorder({ value, onChange }: { value: RecordingValue; onChange: (value: RecordingValue) => void }) {

@@ -260,7 +260,15 @@ export async function logTaskStarted(userId: string, sprintId: string, sessionId
   throwIfError(error);
 }
 
-function normalizeAnswer(value: string) { return value.trim().toLocaleLowerCase().replace(/\s+/g, " "); }
+function normalizeAnswer(value: string) {
+  return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/^\s*(?:[-#>]+)\s+/gm, "")
+    .trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
 export async function submitTaskAttempt(userId: string, task: StudyTask, answer: string, selfCorrect?: boolean, evidence = "", structuredResponse: Record<string, string> = {}) {
   const client = getSupabase(); const latest = await client.from("task_attempts").select("attempt_number").eq("task_id", task.id).order("attempt_number", { ascending: false }).limit(1).maybeSingle(); throwIfError(latest.error);
   const isCorrect = task.answerType === "self_check" ? Boolean(selfCorrect) : normalizeAnswer(answer) === normalizeAnswer(task.correctAnswer);

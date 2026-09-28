@@ -221,6 +221,14 @@ button:disabled { cursor:wait;opacity:.65; }
 .answer-field textarea::placeholder,.evidence-field textarea::placeholder { color:#9a9c97;font-weight:400; }
 .answer-field textarea:focus,.evidence-field textarea:focus { outline:3px solid rgba(47,107,79,.13);border-color:var(--green2); }
 .answer-field { border-top:3px solid var(--green2); }.evidence-field { border-top:3px solid var(--gold); }
+.response-editor-toolbar { display:flex;flex-wrap:wrap;gap:4px;padding:6px;border:1px solid var(--line);border-radius:8px;background:#f1f1ec; }
+.response-editor-toolbar button { min-height:30px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:white;color:var(--ink);font-size:.52rem;font-weight:800; }
+.response-editor-toolbar button:first-child { font-weight:950; }.response-editor-toolbar button:nth-child(2) { font-family:Georgia,serif;font-style:italic; }
+.response-editor-toolbar button:last-child { margin-left:auto; }.response-editor-toolbar button.active { border-color:var(--green);background:var(--green);color:white; }
+.markdown-preview.compact { min-height:112px;max-height:310px;padding:13px;border-radius:9px;font-size:.72rem;line-height:1.55; }
+.markdown-preview.compact h1,.markdown-preview.compact h2,.markdown-preview.compact h3 { margin:.7em 0 .35em; }
+.markdown-preview.compact p { margin:.4em 0; }.markdown-preview.compact li { margin:.3em 0 .3em 18px; }
+.markdown-preview code { padding:2px 5px;border-radius:5px;background:#ecece6;color:#315d4d;font:600 .9em ui-monospace,SFMono-Regular,Consolas,monospace; }
 .evidence-templates { display:flex;flex-wrap:wrap;gap:5px; }
 .evidence-templates button { min-height:31px;padding:0 8px;border:1px solid #d8c89f;border-radius:7px;background:#fff9e8;color:#76591e;font-size:.52rem;font-weight:800; }
 .submit-shortcut { margin:8px 2px 0;color:var(--muted);font-size:.54rem;text-align:right; }
@@ -534,6 +542,8 @@ button:disabled { cursor:wait;opacity:.65; }
   .answer-field,.evidence-field { padding:13px; }
   .answer-field textarea,.evidence-field textarea { min-height:104px;font-size:1rem; }
   .evidence-templates button { min-height:40px; }
+  .response-editor-toolbar button { min-height:40px; }
+  .response-editor-toolbar button:last-child { margin-left:0; }
   .submit-shortcut { text-align:left; }
 }
 
